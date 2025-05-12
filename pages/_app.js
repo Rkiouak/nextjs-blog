@@ -7,9 +7,10 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { CacheProvider } from '@emotion/react'; // Needed for Emotion SSR with MUI
 
 import theme from '../src/theme'; // Adjust path if needed
-import { AuthProvider } from '../src/context/AuthContext'; // Adjust path if needed
+import { AuthProvider } from '@/context/AuthContext'; // Adjust path if needed
 import createEmotionCache from '../src/createEmotionCache'; // Utility for MUI SSR (see below)
 import Layout from '../src/components/Layout'; // Import your main Layout
+import { GoogleAnalytics } from '@next/third-parties/google';
 
 // Import global styles
 import '../src/styles/globals.css';
@@ -47,28 +48,7 @@ export default function MyApp(props) {
           )}
         </AuthProvider>
       </ThemeProvider>
-
-      {/* Google Analytics Script */}
-      {/* Use process.env.NEXT_PUBLIC_GA_ID for the tracking ID */}
-      {/* Make sure to set NEXT_PUBLIC_GA_ID=G-0NWQCXZFW7 in your .env.local file */}
-      <Script
-        strategy="afterInteractive"
-        src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
-      />
-      <Script
-        id="google-analytics"
-        strategy="afterInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}', {
-              page_path: window.location.pathname,
-            });
-          `,
-        }}
-      />
+        <GoogleAnalytics gaId={"G-0NWQCXZFW7"}/>
     </CacheProvider>
   );
 }

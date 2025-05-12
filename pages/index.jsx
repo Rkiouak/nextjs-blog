@@ -1,5 +1,5 @@
 import React from 'react';
-import Head from 'next/head'; // For managing the document head
+import Head from 'next/head';
 import {
   Grid,
   Typography,
@@ -8,7 +8,7 @@ import {
   Paper,
   Divider,
 } from '@mui/material';
-import BlogPostPreview from '../src/components/BlogPostPreview'; // Adjust path if needed
+import BlogPostPreview from '../src/components/BlogPostPreview';
 import CookieConsent from 'react-cookie-consent';
 
 // This function runs at build time (or on-demand with revalidate) on the server-side.
@@ -51,7 +51,6 @@ export async function getStaticProps() {
   };
 }
 
-// The HomePage component receives `posts` and `error` as props from getStaticProps
 export default function HomePage({ posts, error }) {
   return (
     <>
