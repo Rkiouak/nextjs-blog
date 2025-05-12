@@ -1,4 +1,4 @@
-// pages/users/validate.jsx
+// pages/user/validate.jsx
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router'; // Use Next.js router
 import Head from 'next/head';

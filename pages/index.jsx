@@ -77,13 +77,10 @@ export default function HomePage({ posts, error }) {
             Welcome to musings.
           </Typography>
           <Typography variant="body1" paragraph>
-            This is a space for my thoughts, reflections, and explorations.
+            I share thoughts, reflections, explorations and miscellanea here.
           </Typography>
           <Typography variant="body1" paragraph>
             I may add random things to this site, under an experiments tab.
-          </Typography>
-          <Typography variant="body1" paragraph>
-            Will add comments on posts and other stuff at some point.
           </Typography>
         </Paper>
 

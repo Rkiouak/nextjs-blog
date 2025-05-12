@@ -21,7 +21,7 @@ import { useAuth } from '@/context/AuthContext'; // Adjust path if needed
 // --- Server-side Protection (Recommended) ---
 // Although we add client-side checks, protecting this page server-side
 // is more secure. You would typically do this with getServerSideProps
-// to redirect unauthenticated users *before* the page even renders.
+// to redirect unauthenticated user *before* the page even renders.
 // Example (add this function outside the component):
 /*
 export async function getServerSideProps(context) {
