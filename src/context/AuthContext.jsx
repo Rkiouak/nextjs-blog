@@ -1,64 +1,114 @@
+// src/context/AuthContext.jsx
 import React, { createContext, useState, useContext, useMemo, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/router'; // Import router for potential use in handleUnauthorized if needed elsewhere
 
 const AuthContext = createContext(null);
-const TOKEN_KEY = 'authToken'; // Consider moving to a config file
+const TOKEN_KEY = 'authToken';
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(null); // Initialize null, check localStorage in effect
-  const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true); // Add loading state
+  const [token, setToken] = useState(null);
+  const [user, setUser] = useState(null); // Will store user details { username, email, ... }
+  const [isLoading, setIsLoading] = useState(true); // For initial token and user loading
 
-  // Check localStorage only on the client-side after mount
+  const fetchUserDetails = useCallback(async (currentToken) => {
+    if (!currentToken) {
+      setUser(null);
+      setIsLoading(false); // Ensure loading stops if no token
+      return;
+    }
+    // Temporarily set isLoading to true for this specific fetch,
+    // though global isLoading might already cover it.
+    // setIsLoading(true); // Re-enable if distinct loading states are needed per fetch
+    try {
+      const profileUrl = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/users/me/`;
+      const response = await fetch(profileUrl, {
+        headers: {
+          Authorization: `Bearer ${currentToken}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        // Token is invalid or expired
+        console.warn('AuthContext: fetchUserDetails - Unauthorized. Clearing token.');
+        localStorage.removeItem(TOKEN_KEY); // Explicitly remove invalid token
+        setToken(null);
+        setUser(null);
+        // Optionally trigger a global unauthorized handler if needed beyond context
+        // handleUnauthorized(); // No, this would cause a loop if called from here directly
+        return; // Stop further processing
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch user details.' }));
+        throw new Error(errorData.detail || `HTTP error ${response.status}`);
+      }
+
+      const userData = await response.json();
+      setUser(userData); // Store full user object
+    } catch (error) {
+      console.error("AuthContext: Failed to fetch user details:", error);
+      setUser(null); // Clear user on error
+      // If the error was due to an invalid token, it should be cleared above.
+      // If it's another type of error, we might not want to clear the token immediately,
+      // unless we are sure the token is the cause.
+    } finally {
+      // Global isLoading should be set to false after initial attempt
+      // For subsequent fetches (e.g. after login), this isLoading might not be the primary concern.
+      setIsLoading(false); // Ensure loading is false after attempt
+    }
+  }, []); // No dependencies that would cause re-creation issues here
+
+  // Effect for initial loading of token and user details from localStorage
   useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true); // Start loading
     try {
       const storedToken = localStorage.getItem(TOKEN_KEY);
       if (storedToken) {
         setToken(storedToken);
-        // If you store user details, parse them here, otherwise set a default
-        setUser({ username: 'AuthenticatedUser' }); // Or fetch user details based on token
+        if (isMounted) { // Check if component is still mounted
+          fetchUserDetails(storedToken).then(() => {
+            if (isMounted) setIsLoading(false);
+          });
+        }
+      } else {
+        if (isMounted) setIsLoading(false); // No token, stop loading
       }
     } catch (error) {
       console.error("Error reading auth token from localStorage:", error);
-      // Handle potential SecurityError in restricted environments
-    } finally {
-      setIsLoading(false); // Finished initial loading
+      if (isMounted) setIsLoading(false); // Stop loading on error
     }
-  }, []); // Run only once on mount
+    return () => { isMounted = false; };
+  }, [fetchUserDetails]); // fetchUserDetails is stable due to useCallback
 
-  // Effect to update localStorage and user state when token changes
+  // Effect to update localStorage when token changes (but not user object directly)
   useEffect(() => {
     if (token) {
       try {
         localStorage.setItem(TOKEN_KEY, token);
-        // Don't automatically set user here unless you decode the token
-        // or fetch user details. For now, let login set the user.
-        // Example: Assume token means user is logged in, needs details fetched/decoded
-         if (!user) setUser({ username: 'AuthenticatedUser' }); // Basic user if not set
       } catch (error) {
         console.error("Error writing auth token to localStorage:", error);
       }
     } else {
       try {
         localStorage.removeItem(TOKEN_KEY);
-        setUser(null);
       } catch (error) {
         console.error("Error removing auth token from localStorage:", error);
       }
     }
-  }, [token, user]); // Re-run when token or user potentially changes
+  }, [token]);
 
-  // Centralized handler for Unauthorized (401/403) responses
-  // Now focuses on clearing state, not navigating.
   const handleUnauthorized = useCallback(() => {
-    console.log("AuthContext: Handling Unauthorized (401/403). Clearing token.");
-    setToken(null); // Clear token immediately
-    // Navigation should be handled by the component/page that received the 401/403
-    // For example: router.push('/login?sessionExpired=true');
+    console.log("AuthContext: Handling Unauthorized (401/403). Clearing token and user.");
+    setToken(null);
+    setUser(null);
+    // Navigation should be handled by the component/page.
+    // Example: router.push('/login?sessionExpired=true');
   }, []);
 
-  // Login function: returns user info on success, throws error on failure.
-  // Does NOT navigate.
   const login = useCallback(async (username, password) => {
+    setIsLoading(true); // Indicate loading during login process
     const loginUrl = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/token`;
     const formData = new FormData();
     formData.append('username', username);
@@ -71,64 +121,58 @@ export function AuthProvider({ children }) {
       });
 
       if (!response.ok) {
-        // Check for specific auth errors first
-        if (response.status === 401 || response.status === 403) {
-           console.error(`Auth Error (${response.status}) during login.`);
-           // Optionally call handleUnauthorized here IF you want state cleared even on failed login attempt
-           // handleUnauthorized(); // Depends on desired UX
-        }
-        // Try to get error details
         let errorMsg = `Login failed with status: ${response.status}`;
         try {
           const errorData = await response.json();
           errorMsg = errorData.detail || errorMsg;
         } catch (e) { /* Ignore parsing error */ }
-        throw new Error(errorMsg); // Throw error for the page to catch
+        throw new Error(errorMsg);
       }
 
       const data = await response.json();
 
       if (data.access_token) {
-        setToken(data.access_token);
-        const loggedInUser = { username: username }; // Or decode from token if possible
-        setUser(loggedInUser);
-        return loggedInUser; // Return user/token data on success
+        setToken(data.access_token); // This will trigger the useEffect to save to localStorage
+        await fetchUserDetails(data.access_token); // Fetch user details with the new token
+        // Login function now resolves with the user object or true/void
+        // We rely on fetchUserDetails to set the user state.
+        // The calling component (LoginPage) will handle navigation.
+        return true; // Indicate success
       } else {
         throw new Error('Login successful, but no access token received.');
       }
-
     } catch (error) {
       console.error("Login API call failed:", error);
-      // Re-throw the error for the calling component (e.g., LoginPage) to handle
-      throw error;
+      handleUnauthorized(); // Clear any potentially partially set auth state on login failure
+      throw error; // Re-throw for LoginPage to handle
+    } finally {
+      setIsLoading(false);
     }
-  }, []); // Removed handleUnauthorized from deps as it's stable
+  }, [fetchUserDetails, handleUnauthorized]);
 
-  // Logout function: Clears state, does NOT navigate.
   const logout = useCallback(() => {
     console.log("AuthContext: Logging out.");
     setToken(null);
-    // Navigation (e.g., to '/') should be handled by the component triggering logout (e.g., Header)
+    setUser(null);
+    // Navigation (e.g., to '/') handled by the component triggering logout
   }, []);
 
-  // Memoize the context value
   const value = useMemo(
-    () => ({
-      user,
-      token,
-      isAuthenticated: !!token,
-      isLoading, // Expose loading state for initial auth check
-      login,
-      logout,
-      handleUnauthorized,
-    }),
-    [user, token, isLoading, login, logout, handleUnauthorized]
+      () => ({
+        user, // Now contains full user details { username, email, ... }
+        token,
+        isAuthenticated: !!token && !!user, // Consider user also for isAuthenticated
+        isLoading,
+        login,
+        logout,
+        handleUnauthorized,
+      }),
+      [user, token, isLoading, login, logout, handleUnauthorized]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// Custom hook to use the AuthContext
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

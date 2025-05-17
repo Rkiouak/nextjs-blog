@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import ScienceIcon from '@mui/icons-material/Science';
 
 function Header() {
-    const auth = useAuth(); // Get auth state and functions
+    const { user, isAuthenticated, logout } = useAuth(); // Destructure user, isAuthenticated, and logout
 
     return (
         <AppBar position="static">
@@ -44,16 +45,29 @@ function Header() {
 
                 {/* Auth Buttons Container */}
                 <Box>
-                    {auth.isAuthenticated ? (
+                    {isAuthenticated ? (
                         <>
+                            {/* Conditionally render Create Post button */}
+                            {user?.email === 'mrkiouak@gmail.com' && (
+                                <Button
+                                    color="inherit"
+                                    component={Link}
+                                    href="/create-post"
+                                    startIcon={<AddCircleOutlineIcon />}
+                                    sx={{ mr: 1.5 }}
+                                >
+                                    Create Post
+                                </Button>
+                            )}
+
                             <Button
                                 color="inherit"
                                 component={Link}
-                                href="/create-post"
-                                startIcon={<AddCircleOutlineIcon />}
+                                href="/experiments"
+                                startIcon={<ScienceIcon />}
                                 sx={{ mr: 1.5 }}
                             >
-                                Create Post
+                                Experiments
                             </Button>
 
                             <IconButton
@@ -61,11 +75,11 @@ function Header() {
                                 component={Link}
                                 href="/profile"
                                 aria-label="account of current user"
-                                sx={{ mr: 1.5 }} // Keep margin
+                                sx={{ mr: 1.5 }}
                             >
                                 <AccountCircleIcon />
                             </IconButton>
-                            <Button color="inherit" onClick={auth.logout}>
+                            <Button color="inherit" onClick={logout}>
                                 Logout
                             </Button>
                         </>
