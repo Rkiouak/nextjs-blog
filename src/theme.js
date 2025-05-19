@@ -4,7 +4,7 @@ const earthyTheme = createTheme({
     palette: {
         mode: 'light', // You can set 'light' or 'dark'
         primary: {
-            main: '#d07557', // Sienna - a reddish-brown earth tone
+            main: '#fb9779', // Sienna - a reddish-brown earth tone
             contrastText: '#FFFFFF', // White text contrasts well with Sienna
         },
         secondary: {

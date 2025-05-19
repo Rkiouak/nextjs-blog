@@ -13,17 +13,23 @@ import {
     Alert,
     useTheme,
     Slide,
-    Fade,
-    // Container, // Not strictly needed for this page's core layout
 } from '@mui/material';
-import SendIcon from '@mui/icons-material/Send'; // Assuming used in View 1
+import SendIcon from '@mui/icons-material/Send';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import MenuBookIcon from '@mui/icons-material/MenuBook'; // Icon for View Story button
 import { useAuth } from '@/context/AuthContext';
+
+const DEFAULT_IMAGE_URL = "https://images.unsplash.com/photo-1500902734059-c72a2f597845?auto=format&fit=crop&w=700&q=60";
+const DEFAULT_PROMPT_FOR_USER = "What happens next?";
+const DEFAULT_TURN_TEXT = "The story continues...";
+const WAITING_FOR_TALE_TEXT = "The campfire crackles, waiting for a tale...";
+const START_NEW_STORY_PROMPT_INPUT = "Let's start a new story! What's the opening line?";
 
 const StoryImageDisplay = ({ src, alt, sx }) => (
     <Box
         component="img"
-        src={src || "https://images.unsplash.com/photo-1500902734059-c72a2f597845?auto=format&fit=crop&w=700&q=60"}
+        src={src || DEFAULT_IMAGE_URL}
         alt={alt || "Campfire scene"}
         sx={{
             display: 'block',
@@ -32,7 +38,7 @@ const StoryImageDisplay = ({ src, alt, sx }) => (
             width: 'auto',
             height: 'auto',
             objectFit: 'contain',
-            m: 'auto', // helps center if image is smaller than its containing Box
+            m: 'auto',
             ...sx,
         }}
     />
@@ -45,26 +51,46 @@ export default function CampfireStorytellingPage() {
 
     const [currentView, setCurrentView] = useState('storyDisplay');
     const [animatingOut, setAnimatingOut] = useState(false);
-    const [mainStoryContent, setMainStoryContent] = useState("The campfire crackles, waiting for a tale...\n\nCaptain Gus, a fluffy Landseer Newfoundland with a tiny sailor hat, grinned as his boat gently rocked. Beside him, splashing happily, was his best friend, Willy the Blue Whale! The sun sparkled on the water as they sailed towards a mysterious island, a secret destination known only to them.");
-    const [currentPrompt, setCurrentPrompt] = useState('What happens next?');
-    const [storyImage, setStoryImage] = useState("https://storage.googleapis.com/musings-mr.net/campfire_images/mrkiouak%40gmail.com/f30bfdaf-1fd2-496a-9325-8755032b34f8.png");
+
+    const [displayedStoryText, setDisplayedStoryText] = useState(WAITING_FOR_TALE_TEXT);
+    const [displayedImage, setDisplayedImage] = useState(DEFAULT_IMAGE_URL);
+    const [promptForNextTurnButton, setPromptForNextTurnButton] = useState(DEFAULT_PROMPT_FOR_USER);
+
+    const [promptForChatInput, setPromptForChatInput] = useState(START_NEW_STORY_PROMPT_INPUT);
     const [userInput, setUserInput] = useState('');
-    const [chatTurns, setChatTurns] = useState([]); // Assuming this is for View 1
-    const [isLoadingPage, setIsLoadingPage] = useState(true); // Start true to fetch initial data
+
+    const [allChatTurns, setAllChatTurns] = useState([]);
+    const [storytellerTurns, setStorytellerTurns] = useState([]);
+    const [currentStorytellerTurnIndex, setCurrentStorytellerTurnIndex] = useState(0);
+
+    const [isLoadingPage, setIsLoadingPage] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
 
-    const chatInputRef = useRef(null); // For View 1
-    const chatHistoryRef = useRef(null); // For View 1
-    const storyTextRef = useRef(null); // For View 2
+    const chatInputRef = useRef(null);
+    const chatHistoryRef = useRef(null);
+    const storyTextRef = useRef(null);
 
     const API_ENDPOINT = '/api/experiments/campfire';
     const headerHeight = theme.mixins?.toolbar?.minHeight || 64;
     const footerHeight = 57;
 
+    const updateDisplayedStorytellerTurn = useCallback((index, currentStorytellerTurns) => {
+        if (currentStorytellerTurns && currentStorytellerTurns.length > 0 && index >= 0 && index < currentStorytellerTurns.length) {
+            const turn = currentStorytellerTurns[index] || {};
+            setDisplayedStoryText(turn.text || DEFAULT_TURN_TEXT);
+            setDisplayedImage(turn.imageUrl || DEFAULT_IMAGE_URL);
+            setPromptForNextTurnButton(turn.promptForUser || DEFAULT_PROMPT_FOR_USER);
+        } else {
+            setDisplayedStoryText(WAITING_FOR_TALE_TEXT);
+            setDisplayedImage(DEFAULT_IMAGE_URL);
+            setPromptForNextTurnButton(DEFAULT_PROMPT_FOR_USER);
+        }
+    }, []);
+
     const fetchInitialData = useCallback(async () => {
         if (!token || !isAuthenticated) {
-            setIsLoadingPage(false); // Stop loading if no token/auth
+            setIsLoadingPage(false);
             return;
         }
         setIsLoadingPage(true);
@@ -74,65 +100,107 @@ export default function CampfireStorytellingPage() {
                 headers: {'Authorization': `Bearer ${token}`, 'Accept': 'application/json'}
             });
             if (!response.ok) {
-                const errData = await response.json().catch(() => ({detail: `Error fetching initial story: ${response.status}`}));
-                throw new Error(errData.detail || `Error fetching initial story: ${response.status}`);
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.detail || `Error fetching initial story: ${response.statusText}`);
             }
-            const data = await response.json();
+            const data = await response.json() || {};
 
-            setMainStoryContent(data.storyContent || "The campfire awaits your story...");
-            setCurrentPrompt(data.prompt || "What adventure unfolds?");
-            setStoryImage(data.newImageUrl || "https://images.unsplash.com/photo-1500902734059-c72a2f597845?auto=format&fit=crop&w=700&q=60");
-            setChatTurns(data.chatTurns || [{id: 'start', sender: 'Storyteller', text: 'The adventure begins...'}]);
+            const rawTurns = Array.isArray(data.chatTurns) ? data.chatTurns : [];
+            const processedAllTurns = rawTurns.map((turn, idx) => {
+                const currentTurn = turn || {};
+                return {
+                    id: currentTurn.id || `turn-${idx}-${Date.now()}`,
+                    sender: currentTurn.sender || 'System',
+                    text: currentTurn.text || (currentTurn.sender === 'User' ? 'User input' : DEFAULT_TURN_TEXT),
+                    imageUrl: currentTurn.imageUrl || null,
+                    promptForUser: currentTurn.promptForUser || null
+                };
+            });
+            setAllChatTurns(processedAllTurns);
 
-            if (data.hasActiveSessionToday && data.chatTurns && data.chatTurns.length > 1) {
-                setCurrentView('storyDisplay');
+            const currentStorytellerTurns = processedAllTurns.filter(turn => turn.sender === "Storyteller");
+            setStorytellerTurns(currentStorytellerTurns);
+
+            if (currentStorytellerTurns.length > 0) {
+                setCurrentStorytellerTurnIndex(currentStorytellerTurns.length - 1);
             } else {
-                if (!data.hasActiveSessionToday) {
-                    setCurrentPrompt(data.prompt || "Let's start a new story! What's the opening line?");
-                }
+                updateDisplayedStorytellerTurn(0, []);
+            }
+
+            const lastOverallTurn = processedAllTurns.length > 0 ? processedAllTurns[processedAllTurns.length - 1] : null;
+            if (lastOverallTurn && lastOverallTurn.sender === "Storyteller" && lastOverallTurn.promptForUser) {
+                setPromptForChatInput(lastOverallTurn.promptForUser);
+            } else if (processedAllTurns.length === 0) {
+                setPromptForChatInput(START_NEW_STORY_PROMPT_INPUT);
+            } else {
+                setPromptForChatInput(DEFAULT_PROMPT_FOR_USER);
+            }
+
+            const hasActiveSession = data.hasActiveSessionToday || false;
+            if (hasActiveSession && currentStorytellerTurns.length > 0) { // If there are storyteller turns, default to story view
+                setCurrentView('storyDisplay');
+            } else { // Otherwise, or if no active session, go to input
                 setCurrentView('chatInput');
                 setTimeout(() => chatInputRef.current?.focus(), 0);
             }
+
         } catch (err) {
             console.error("Failed to fetch initial story data:", err);
             setError(err.message || "Could not load the story.");
-            setMainStoryContent("Failed to load story. The ancient spirits are uncooperative tonight.");
-            // setCurrentView('chatInput'); // Or keep on storyDisplay with error
+            updateDisplayedStorytellerTurn(0, []);
+            setPromptForChatInput(START_NEW_STORY_PROMPT_INPUT);
         } finally {
             setIsLoadingPage(false);
         }
-    }, [token, isAuthenticated]);
+    }, [token, isAuthenticated, updateDisplayedStorytellerTurn]);
+
 
     useEffect(() => {
         if (!isAuthLoading && !isAuthenticated) {
             router.push('/login?from=/experiments/campfire-storytelling');
-        } else if (isAuthenticated && token) { // Removed isLoadingPage from here to allow re-fetch if needed without full page reload state
+        } else if (isAuthenticated && token) {
             fetchInitialData();
         } else if (!isAuthLoading && !token) {
-            setIsLoadingPage(false); // Ensure loading stops if not authenticated and no token
+            setIsLoadingPage(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAuthenticated, isAuthLoading, router, token]); // fetchInitialData removed to prevent loop if it's not stable, or add it if it is.
+    }, [isAuthenticated, isAuthLoading, router, token]);
+
+    useEffect(() => {
+        updateDisplayedStorytellerTurn(currentStorytellerTurnIndex, storytellerTurns);
+    }, [currentStorytellerTurnIndex, storytellerTurns, updateDisplayedStorytellerTurn]);
+
 
     useEffect(() => {
         if (chatHistoryRef.current && currentView === 'chatInput') {
             chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
         }
-    }, [chatTurns, currentView]);
+    }, [allChatTurns, currentView]);
 
     useEffect(() => {
         if (storyTextRef.current && currentView === 'storyDisplay') {
             storyTextRef.current.scrollTop = storyTextRef.current.scrollHeight;
         }
-    }, [mainStoryContent, currentView]);
+    }, [displayedStoryText, currentView]);
 
 
     const handleInputChange = (event) => {
         setUserInput(event.target.value);
     };
 
-    const handleTransitionToChat = () => {
+    const handleTransitionToChat = () => { // From View 2 to View 1
         setAnimatingOut(true);
+        const currentStorytellerTurn = storytellerTurns[currentStorytellerTurnIndex];
+        if (currentStorytellerTurn && currentStorytellerTurn.promptForUser) {
+            setPromptForChatInput(currentStorytellerTurn.promptForUser);
+        } else {
+            const lastOverallTurn = allChatTurns.length > 0 ? allChatTurns[allChatTurns.length - 1] : null;
+            if (lastOverallTurn && lastOverallTurn.promptForUser && lastOverallTurn.sender === "Storyteller") {
+                setPromptForChatInput(lastOverallTurn.promptForUser);
+            } else {
+                setPromptForChatInput(DEFAULT_PROMPT_FOR_USER);
+            }
+        }
         setTimeout(() => {
             setCurrentView('chatInput');
             setAnimatingOut(false);
@@ -140,8 +208,23 @@ export default function CampfireStorytellingPage() {
         }, 300);
     };
 
-    const handleSubmitTurn = async (event) => { // Added event for form submission
-        event.preventDefault(); // Prevent default form submission
+    const handleTransitionToStoryDisplay = () => { // From View 1 to View 2
+        if (storytellerTurns.length > 0) {
+            setAnimatingOut(true);
+            // Ensure we are on the latest storyteller turn when switching
+            setCurrentStorytellerTurnIndex(storytellerTurns.length - 1);
+            setTimeout(() => {
+                setCurrentView('storyDisplay');
+                setAnimatingOut(false);
+            }, 300);
+        } else {
+            setError("There are no story parts to display yet.");
+        }
+    };
+
+
+    const handleSubmitTurn = async (event) => {
+        event.preventDefault();
         if (!userInput.trim() || !token) {
             setError(!token ? "You must be logged in." : "Input cannot be empty.");
             return;
@@ -150,12 +233,22 @@ export default function CampfireStorytellingPage() {
         setError('');
         const currentTurnText = userInput.trim();
 
+        const lastTurnInAll = allChatTurns.length > 0 ? (allChatTurns[allChatTurns.length - 1] || {}) : {};
+        const previousContentForPayload = lastTurnInAll.text || WAITING_FOR_TALE_TEXT;
+
         try {
             const payload = {
-                previousContent: mainStoryContent,
-                prompt: currentPrompt,
+                previousContent: previousContentForPayload,
                 inputText: currentTurnText,
+                chatTurns: allChatTurns.map(ct => ({
+                    id: ct.id || undefined,
+                    sender: ct.sender || 'System',
+                    text: ct.text || '',
+                    imageUrl: ct.imageUrl || null,
+                    promptForUser: ct.promptForUser || null,
+                })),
             };
+
             const response = await fetch(API_ENDPOINT, {
                 method: 'POST',
                 headers: {
@@ -173,44 +266,74 @@ export default function CampfireStorytellingPage() {
                 } else {
                     try {
                         const errData = await response.json();
-                        errorDetail = errData.detail || errorDetail;
+                        errorDetail = (errData || {}).detail || errorDetail;
                     } catch (e) { /* Keep original errorDetail */ }
                 }
                 throw new Error(errorDetail);
             }
-            const data = await response.json();
+            const data = await response.json() || {};
+
+            const updatedRawTurns = Array.isArray(data.chatTurns) ? data.chatTurns : [];
+            const updatedProcessedAllTurns = updatedRawTurns.map((turn, idx) => {
+                const currentTurn = turn || {};
+                return {
+                    id: currentTurn.id || `resp-turn-${idx}-${Date.now()}`,
+                    sender: currentTurn.sender || 'System',
+                    text: currentTurn.text || (currentTurn.sender === 'User' ? 'User input' : DEFAULT_TURN_TEXT),
+                    imageUrl: currentTurn.imageUrl || null,
+                    promptForUser: currentTurn.promptForUser || null
+                };
+            });
+            setAllChatTurns(updatedProcessedAllTurns);
+
+            const updatedStorytellerTurns = updatedProcessedAllTurns.filter(turn => turn.sender === "Storyteller");
+            setStorytellerTurns(updatedStorytellerTurns);
+
+            if (updatedStorytellerTurns.length > 0) {
+                setCurrentStorytellerTurnIndex(updatedStorytellerTurns.length - 1);
+            }
+
+            const newLastOverallTurn = updatedProcessedAllTurns.length > 0 ? updatedProcessedAllTurns[updatedProcessedAllTurns.length - 1] : null;
+            if (newLastOverallTurn && newLastOverallTurn.sender === "Storyteller" && newLastOverallTurn.promptForUser) {
+                setPromptForChatInput(newLastOverallTurn.promptForUser);
+            } else {
+                // If the last turn isn't a storyteller prompt, find the most recent one or default
+                const lastStorytellerPromptTurn = [...updatedProcessedAllTurns].reverse().find(t => t.sender === "Storyteller" && t.promptForUser);
+                setPromptForChatInput(lastStorytellerPromptTurn?.promptForUser || DEFAULT_PROMPT_FOR_USER);
+            }
 
             setAnimatingOut(true);
             setTimeout(() => {
-                setMainStoryContent(data.storyContent || mainStoryContent);
-                setCurrentPrompt(data.prompt || "And then what happened?");
-                if (data.newImageUrl) setStoryImage(data.newImageUrl);
-                setChatTurns(data.chatTurns || chatTurns); // Update chatTurns if API returns them
                 setUserInput('');
-                setCurrentView('storyDisplay');
+                setCurrentView('storyDisplay'); // Go to story display after submit
                 setAnimatingOut(false);
             }, 300);
+
         } catch (err) {
             console.error("Failed to submit story turn:", err);
             setError(err.message || "Could not submit your turn.");
         } finally {
-            // Only set isSubmitting to false if not transitioning (transition handles it)
-            if (!(currentView === 'storyDisplay' && animatingOut)) {
-                setIsSubmitting(false);
-            }
+            setIsSubmitting(false);
         }
     };
+
     useEffect(() => {
-        // This ensures isSubmitting is false after the transition to storyDisplay is complete
         if (currentView === 'storyDisplay' && !animatingOut && isSubmitting) {
             setIsSubmitting(false);
         }
     }, [currentView, animatingOut, isSubmitting]);
 
+    const handlePrevTurn = () => {
+        setCurrentStorytellerTurnIndex(prev => Math.max(0, prev - 1));
+    };
+
+    const handleNextTurn = () => {
+        setCurrentStorytellerTurnIndex(prev => Math.min(storytellerTurns.length - 1, prev + 1));
+    };
 
     const pageContainerHeight = `calc(100vh - ${headerHeight}px - ${footerHeight}px)`;
 
-    if (isAuthLoading || isLoadingPage) { // Combined loading state
+    if (isAuthLoading || isLoadingPage) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: pageContainerHeight, bgcolor: '#0A0A23', color: '#E0E0E0' }}>
                 <CircularProgress color="inherit"/> <Typography sx={{ml: 2}}>Warming up the campfire...</Typography>
@@ -232,7 +355,7 @@ export default function CampfireStorytellingPage() {
         height: pageContainerHeight,
         bgcolor: '#0A0A23', color: '#EAEAEA',
         p: { xs: 1, sm: 2 },
-        overflow: 'hidden', // Page itself should not scroll; internal parts will
+        overflow: 'hidden',
         position: 'relative',
     };
 
@@ -251,17 +374,30 @@ export default function CampfireStorytellingPage() {
                 {/* View 1: Chat Input View */}
                 <Slide direction="right" in={currentView === 'chatInput' && !animatingOut} mountOnEnter unmountOnExit timeout={300}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 2, overflowY: 'auto' }}>
-                        <Typography variant="h5" sx={{ textAlign: 'center', color: currentPrompt.includes("opening line") ? '#FFD700' : '#EAEAEA', mb: 1, flexShrink: 0 }}>
-                            {currentPrompt}
+                        <Typography variant="h5" sx={{ textAlign: 'center', color: (promptForChatInput || "").includes("opening line") ? '#FFD700' : '#EAEAEA', mb: 1, flexShrink: 0 }}>
+                            {promptForChatInput || DEFAULT_PROMPT_FOR_USER}
                         </Typography>
                         <Paper sx={{ flexGrow: 1, p: 2, overflowY: 'auto', mb: 2, bgcolor: 'rgba(20,20,40,0.8)', border: '1px solid #444' }} ref={chatHistoryRef}>
-                            {chatTurns.map((turn, index) => (
-                                <Typography key={index} paragraph sx={{ color: turn.sender === 'user' ? '#ADD8E6' : '#F0E68C', mb: 1, whiteSpace: 'pre-wrap' }}>
-                                    <strong>{turn.sender}:</strong> {turn.text}
-                                </Typography>
+                            {allChatTurns.map((turn, index) => (
+                                <Box key={turn.id || `chat-hist-${index}`}>
+                                    {turn.sender === 'Storyteller' && turn.text && (
+                                        <Typography paragraph sx={{ color: '#F0E68C', mb: 1, whiteSpace: 'pre-wrap' }}>
+                                            <strong>Storyteller:</strong> {turn.text}
+                                            {turn.promptForUser && ( // Show prompt associated with this storyteller text
+                                                <em style={{display: 'block', marginTop: '4px', color: '#c0b07c'}}>(Prompt: {turn.promptForUser})</em>
+                                            )}
+                                        </Typography>
+                                    )}
+                                    {turn.sender === 'User' && turn.text && (
+                                        <Typography paragraph sx={{ color: '#ADD8E6', mb: 1, whiteSpace: 'pre-wrap' }}>
+                                            <strong>{user?.username || 'You'}:</strong> {turn.text}
+                                        </Typography>
+                                    )}
+                                </Box>
                             ))}
                         </Paper>
-                        <Box component="form" onSubmit={handleSubmitTurn} sx={{ display: 'flex', mt: 'auto', gap: 1, flexShrink: 0 }}>
+                        {/* Form for submitting input or viewing story */}
+                        <Box component="form" onSubmit={handleSubmitTurn} sx={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0, mt: 'auto' }}>
                             <TextField
                                 fullWidth
                                 multiline
@@ -278,9 +414,20 @@ export default function CampfireStorytellingPage() {
                                     '& .MuiInputBase-input': { color: '#E0E0E0' }
                                 }}
                             />
-                            <Button type="submit" variant="contained" endIcon={<SendIcon />} disabled={isSubmitting || !userInput.trim()} sx={{bgcolor: '#FF8C00', '&:hover': {bgcolor: '#FFA500'}}}>
-                                {isSubmitting ? <CircularProgress size={24} color="inherit"/> : "Send"}
-                            </Button>
+                            <Box sx={{display: 'flex', gap: 1}}>
+                                <Button
+                                    variant="outlined"
+                                    startIcon={<MenuBookIcon />}
+                                    onClick={handleTransitionToStoryDisplay}
+                                    disabled={storytellerTurns.length === 0 || isSubmitting}
+                                    sx={{borderColor: '#FF8C00', color: '#FF8C00', '&:hover': {borderColor: '#FFA500', color: '#FFA500', backgroundColor: 'rgba(255,165,0,0.1)'}}}
+                                >
+                                    View Story
+                                </Button>
+                                <Button type="submit" variant="contained" endIcon={<SendIcon />} disabled={isSubmitting || !userInput.trim()} sx={{flexGrow: 1, bgcolor: '#FF8C00', '&:hover': {bgcolor: '#FFA500'}}}>
+                                    {isSubmitting ? <CircularProgress size={24} color="inherit"/> : "Send"}
+                                </Button>
+                            </Box>
                         </Box>
                     </Box>
                 </Slide>
@@ -293,78 +440,81 @@ export default function CampfireStorytellingPage() {
                             textShadow: '0 0 6px #FFA500', flexShrink: 0,
                             fontSize: { xs: '1.5rem', md: '2rem' }
                         }}>
-                            Storytime
+                            Stories & Tales
                         </Typography>
 
                         <Grid container spacing={1} sx={{
                             flexGrow: 1,
-                            overflowY: 'auto', // Allows Grid container itself to scroll if its single row content is too tall
+                            overflowY: 'hidden',
                             minHeight: 0,
                             p: { xs: 0.5, md: 1 }
                         }}>
-                            {/* Left Column: Image */}
-                            <Grid item size={{xs:12, md:6}} sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                height: { xs: 'auto', md: '100%' }, // Allow item to take full height of the row on md
-                                p: { xs: 0.5, md: 1 },
-                            }}>
-                                <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Grid item size={{xs:12, md: 6}} sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 0.5, md: 1 }}}>
+                                <Box sx={{ width: '100%', flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow:'hidden', mb: { xs: 1, md: 0 }, borderRadius: '4px', border: '1px solid #444', background: 'rgba(0,0,0,0.2)' }}>
                                     <StoryImageDisplay
-                                        src={storyImage}
+                                        src={displayedImage}
                                         alt="Current story scene"
-                                        sx={{ width: '100%', height: '100%', objectFit: 'contain' }} // Image fits within this box
                                     />
                                 </Box>
+                                {storytellerTurns && storytellerTurns.length > 0 && (
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1, width: '100%', flexShrink:0 }}>
+                                        <IconButton onClick={handlePrevTurn} disabled={currentStorytellerTurnIndex === 0} sx={{color: '#FFD700'}}>
+                                            <ArrowBackIcon />
+                                        </IconButton>
+                                        <Typography variant="caption" sx={{color: '#aaa'}}>
+                                            Storyteller Turn {currentStorytellerTurnIndex + 1} of {storytellerTurns.length}
+                                        </Typography>
+                                        <IconButton onClick={handleNextTurn} disabled={currentStorytellerTurnIndex >= storytellerTurns.length - 1} sx={{color: '#FFD700'}}>
+                                            <ArrowForwardIcon />
+                                        </IconButton>
+                                    </Box>
+                                )}
                             </Grid>
-
-                            {/* Right Column: Story Text and Button */}
-                            <Grid item size={{xs:12, md:6}} sx={{
+                            <Grid item size={{xs:12, md: 6}} sx={{
                                 display: 'flex',
                                 flexDirection: 'column',
                                 p: { xs: 0.5, md: 1 },
-                                minWidth: 0, // Crucial: Allows this Grid item to shrink to its flex-basis
-                                height: { xs: 'auto', md: '100%' }, // Allow item to take full height of the row on md
+                                minWidth: 0,
+                                height: '100%',
                             }}>
                                 <Paper
                                     ref={storyTextRef}
                                     component="article"
                                     elevation={3}
                                     sx={{
-                                        flexGrow: 1, // Paper takes available vertical space in this flex column
-                                        overflowY: 'auto', // Scroll text content if it's too long
+                                        flexGrow: 1,
+                                        overflowY: 'auto',
                                         p: { xs: 1.5, md: 2 },
                                         bgcolor: 'rgba(44, 44, 44, 0.85)',
                                         border: '1px solid #555', borderRadius: '8px', color: '#f0f0f0',
                                         fontFamily: '"Georgia", "Times New Roman", serif',
-                                        mb: 2, // Margin between Paper and Button
-                                        minHeight: {xs: '150px', md: '200px' }, // Ensure visibility and some space
-                                        minWidth: 0, // Good for flex children
+                                        mb: 2,
+                                        minHeight: {xs: '150px', md: '200px' },
+                                        minWidth: 0,
                                         width: '100%',
                                     }}
                                 >
                                     <Typography component="div" sx={{
                                         fontSize: { xs: '0.9rem', sm: '0.95rem', md: '1rem' },
                                         lineHeight: 1.6,
-                                        whiteSpace: 'pre-wrap',   // Preserves newlines and spaces
+                                        whiteSpace: 'pre-wrap',
                                         textAlign: 'left',
-                                        wordBreak: 'break-word',  // Forces long words/strings to break
-                                        overflowWrap: 'break-word',// Alternative/modern equivalent
+                                        wordBreak: 'break-word',
+                                        overflowWrap: 'break-word',
                                     }}>
-                                        {mainStoryContent && mainStoryContent.trim() !== "" ? (
-                                            mainStoryContent.split('\n').map((paragraph, index, arr) => (
+                                        {displayedStoryText && displayedStoryText.trim() !== "" ? (
+                                            displayedStoryText.split('\n').map((paragraph, index, arr) => (
                                                 <p key={index} style={{ marginBottom: index === arr.length - 1 ? 0 : '15px' }}>{paragraph}</p>
                                             ))
-                                        ) : ( <p>The story is unfolding...</p> )}
+                                        ) : ( <p>{WAITING_FOR_TALE_TEXT}</p> )}
                                     </Typography>
                                 </Paper>
                                 <Button
                                     variant="contained"
                                     onClick={handleTransitionToChat}
-                                    fullWidth // Will be fullWidth of the constrained Grid item
+                                    fullWidth
                                     sx={{
-                                        flexShrink: 0, // Prevent button from shrinking
+                                        flexShrink: 0,
                                         bgcolor: '#FF8C00',
                                         '&:hover': { bgcolor: '#FFA500' },
                                         fontSize: { xs: '0.85rem', md: '0.95rem' },
@@ -372,7 +522,7 @@ export default function CampfireStorytellingPage() {
                                     }}
                                     endIcon={<ArrowForwardIcon />}
                                 >
-                                    And then...
+                                    And then... ({(promptForNextTurnButton || DEFAULT_PROMPT_FOR_USER).length > 20 ? (promptForNextTurnButton || DEFAULT_PROMPT_FOR_USER).substring(0,17) + '...' : (promptForNextTurnButton || DEFAULT_PROMPT_FOR_USER)})
                                 </Button>
                             </Grid>
                         </Grid>
