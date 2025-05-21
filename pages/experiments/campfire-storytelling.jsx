@@ -3,44 +3,24 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import {
     Box,
-    Grid,
     Typography,
-    TextField,
-    Button,
-    Paper,
     CircularProgress,
-    IconButton,
     Alert,
     useTheme,
-    Slide,
-    Tooltip,
 } from '@mui/material';
-import SendIcon from '@mui/icons-material/Send';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
-import EditIcon from '@mui/icons-material/Edit';
-import SaveIcon from '@mui/icons-material/Save';
-import CancelIcon from '@mui/icons-material/Cancel';
 import { useAuth } from '@/context/AuthContext';
-
-const DEFAULT_IMAGE_URL = "/campfire.jpeg";
-const DEFAULT_PROMPT_FOR_USER = "What happens next?";
-const DEFAULT_TURN_TEXT = "The story continues...";
-const WAITING_FOR_TALE_TEXT = "The campfire crackles, waiting for a tale...";
-const START_NEW_STORY_PROMPT_INPUT = "Let's start a new story! What's the opening line?";
-
-const StoryImageDisplay = ({ src, alt, sx }) => (
-    <Box
-        component="img"
-        src={src || DEFAULT_IMAGE_URL}
-        alt={alt || "Campfire scene"}
-        sx={{
-            display: 'block', maxWidth: '100%', maxHeight: '100%',
-            width: 'auto', height: 'auto', objectFit: 'contain', m: 'auto', ...sx,
-        }}
-    />
-);
+import {
+    DEFAULT_PROMPT_FOR_USER,
+    WAITING_FOR_TALE_TEXT,
+    START_NEW_STORY_PROMPT_INPUT,
+    processChatTurns,
+    getStorytellerTurns,
+    getChatInputPrompt,
+    prepareSubmitPayload,
+    DEFAULT_IMAGE_URL,
+    DEFAULT_TURN_TEXT
+} from '@/utils/campfireUtils';
+import { ChatView, StoryDisplayView } from '@/components/CampfireComponents';
 
 export default function CampfireStorytellingPage() {
     const router = useRouter();
@@ -52,43 +32,57 @@ export default function CampfireStorytellingPage() {
     const [currentView, setCurrentView] = useState('storyDisplay');
     const [animatingOut, setAnimatingOut] = useState(false);
 
+    // Story and Turn Management State
     const [currentStoryId, setCurrentStoryId] = useState(null);
     const [storyTitle, setStoryTitle] = useState(titleQueryParam || 'A New Campfire Tale');
     const [editableStoryTitle, setEditableStoryTitle] = useState(titleQueryParam || 'A New Campfire Tale');
     const [isEditingTitle, setIsEditingTitle] = useState(false);
 
+    // For StoryDisplay View
     const [displayedStoryText, setDisplayedStoryText] = useState(WAITING_FOR_TALE_TEXT);
     const [displayedImage, setDisplayedImage] = useState(DEFAULT_IMAGE_URL);
     const [promptForNextTurnButton, setPromptForNextTurnButton] = useState(DEFAULT_PROMPT_FOR_USER);
-    const [promptForChatInput, setPromptForChatInput] = useState(START_NEW_STORY_PROMPT_INPUT);
+
+    // For ChatInput View
     const [userInput, setUserInput] = useState('');
-    const [allChatTurns, setAllChatTurns] = useState([]);
-    const [storytellerTurns, setStorytellerTurns] = useState([]);
+    const [allChatTurns, setAllChatTurns] = useState([]); // Holds all turns (User and Storyteller)
+    const [storytellerTurns, setStorytellerTurns] = useState([]); // Just storyteller turns for navigation
     const [currentStorytellerTurnIndex, setCurrentStorytellerTurnIndex] = useState(0);
-    const [isLoadingPage, setIsLoadingPage] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [promptForChatInput, setPromptForChatInput] = useState(START_NEW_STORY_PROMPT_INPUT);
+
+    // UI State
+    const [isLoadingPage, setIsLoadingPage] = useState(true); // For initial data load
+    const [isSubmitting, setIsSubmitting] = useState(false); // For turn submission
     const [error, setError] = useState('');
 
+    // Refs
     const chatInputRef = useRef(null);
-    const chatHistoryRef = useRef(null);
-    const storyTextRef = useRef(null);
+    const chatHistoryRef = useRef(null); // For scrolling chat
+    const storyTextRef = useRef(null); // For scrolling story text
     const titleEditInputRef = useRef(null);
 
-    const BASE_API_ENDPOINT = '/api/experiments/campfire';
+
+    const BASE_API_ENDPOINT = '/api/experiments/campfire'; // Or process.env.NEXT_PUBLIC_CAMPFIRE_API_URL
     const headerHeight = theme.mixins?.toolbar?.minHeight || 64;
     const footerHeight = 57;
 
+    // Effect to update story title from query param
     useEffect(() => {
         if (router.isReady) {
             const newTitle = titleQueryParam || "A New Campfire Tale";
             setStoryTitle(newTitle);
             setEditableStoryTitle(newTitle);
             if (!titleQueryParam) {
+                // If there's no title query param, it implies a new or ongoing session,
+                // not fetching a specific past story by title initially.
+                // This code should probably never be reached.
                 setCurrentStoryId(null);
             }
         }
     }, [titleQueryParam, router.isReady]);
 
+
+    // Update displayed storyteller turn content
     const updateDisplayedStorytellerTurn = useCallback((index, currentStorytellerTurns) => {
         if (currentStorytellerTurns?.length > 0 && index >= 0 && index < currentStorytellerTurns.length) {
             const turn = currentStorytellerTurns[index] || {};
@@ -96,126 +90,167 @@ export default function CampfireStorytellingPage() {
             setDisplayedImage(turn.imageUrl || DEFAULT_IMAGE_URL);
             setPromptForNextTurnButton(turn.promptForUser || DEFAULT_PROMPT_FOR_USER);
         } else {
+            // Default state if no storyteller turns or index is out of bounds
             setDisplayedStoryText(WAITING_FOR_TALE_TEXT);
             setDisplayedImage(DEFAULT_IMAGE_URL);
             setPromptForNextTurnButton(DEFAULT_PROMPT_FOR_USER);
+            // If it's a new story (no title query param), set initial chat prompt.
             if (!titleQueryParam) {
                 setPromptForChatInput(START_NEW_STORY_PROMPT_INPUT);
             }
         }
-    }, [titleQueryParam]);
+    }, [titleQueryParam]); // titleQueryParam helps differentiate new vs existing story loading
 
+    // Initial data fetching logic
     const fetchInitialData = useCallback(async (currentStoryTitleFromQuery) => {
         if (!token || !isAuthenticated) {
-            setIsLoadingPage(false); return;
+            setIsLoadingPage(false);
+            return;
         }
-        setIsLoadingPage(true); setError('');
-        setCurrentStoryId(null);
+        setIsLoadingPage(true);
+        setError('');
+        setCurrentStoryId(null); // Reset story ID before fetch
 
         let endpoint = BASE_API_ENDPOINT;
+        // If a title is provided (viewing a specific past story), append it
         if (currentStoryTitleFromQuery) {
             endpoint = `${BASE_API_ENDPOINT}?title=${encodeURIComponent(currentStoryTitleFromQuery)}`;
         }
+        // If no title, it will fetch the user's latest ongoing story or start a new session context
 
         try {
             const response = await fetch(endpoint, {
-                headers: {'Authorization': `Bearer ${token}`, 'Accept': 'application/json'}
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json',
+                },
             });
+
             if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
+                const errData = await response.json().catch(() => ({})); // Gracefully handle non-JSON error response
                 throw new Error(errData.detail || `Error fetching story: ${response.statusText}`);
             }
-            const data = await response.json() || {};
 
-            setCurrentStoryId(data.id || null);
+            const data = await response.json() || {}; // Ensure data is an object
 
-            const rawTurns = Array.isArray(data.chatTurns) ? data.chatTurns : [];
-            const processedAllTurns = rawTurns.map((turn, idx) => ({
-                id: turn?.id || `turn-${idx}-${Date.now()}`,
-                sender: turn?.sender || 'System',
-                text: turn?.text || (turn?.sender === 'User' ? 'User input' : DEFAULT_TURN_TEXT),
-                imageUrl: turn?.imageUrl || null,
-                promptForUser: turn?.promptForUser || null
-            }));
-            setAllChatTurns(processedAllTurns);
+            setCurrentStoryId(data.id || null); // Set the story ID if present (new or existing)
 
-            const currentStorytellerTurns = processedAllTurns.filter(turn => turn.sender === "Storyteller");
+            const processedTurns = processChatTurns(data.chatTurns);
+            setAllChatTurns(processedTurns);
+
+            const currentStorytellerTurns = getStorytellerTurns(processedTurns);
             setStorytellerTurns(currentStorytellerTurns);
 
             const effectiveTitle = data.storyTitle || currentStoryTitleFromQuery || "A New Campfire Tale";
             setStoryTitle(effectiveTitle);
             setEditableStoryTitle(effectiveTitle);
 
+
             if (currentStorytellerTurns.length > 0) {
-                setCurrentStorytellerTurnIndex(currentStoryTitleFromQuery ? 0 : currentStorytellerTurns.length - 1);
+                setCurrentStorytellerTurnIndex(currentStorytellerTurns.length - 1);
             } else {
-                updateDisplayedStorytellerTurn(0, []);
+                // No storyteller turns yet, set display to default waiting state.
+                updateDisplayedStorytellerTurn(0, []); // Pass empty array to trigger default
             }
 
-            const lastOverallTurn = processedAllTurns.length > 0 ? processedAllTurns[processedAllTurns.length - 1] : null;
-            if (lastOverallTurn?.sender === "Storyteller" && lastOverallTurn.promptForUser) {
-                setPromptForChatInput(lastOverallTurn.promptForUser);
-            } else if (processedAllTurns.length === 0 && !currentStoryTitleFromQuery) {
-                setPromptForChatInput(START_NEW_STORY_PROMPT_INPUT);
-            } else if (currentStoryTitleFromQuery && currentStorytellerTurns.length > 0) {
-                setPromptForChatInput(currentStorytellerTurns[0]?.promptForUser || DEFAULT_PROMPT_FOR_USER)
-            } else {
-                setPromptForChatInput(DEFAULT_PROMPT_FOR_USER);
-            }
+            // Determine the next prompt for the chat input
+            const isNewStorySession = !currentStoryTitleFromQuery && !data.id; // Heuristic for a new story
+            setPromptForChatInput(getChatInputPrompt(processedTurns, isNewStorySession));
 
+
+            // Decide initial view: If loading a specific past story, or if there's content for an ongoing story, show story display.
+            // Otherwise (new story, no turns yet), go to chat input.
             if (currentStoryTitleFromQuery || (data.id && currentStorytellerTurns.length > 0) || (data.hasActiveSessionToday && currentStorytellerTurns.length > 0) ) {
                 setCurrentView('storyDisplay');
             } else {
                 setCurrentView('chatInput');
-                setTimeout(() => chatInputRef.current?.focus(), 0);
+                setTimeout(() => chatInputRef.current?.focus(), 0); // Focus input after view transition
             }
 
         } catch (err) {
             console.error("Failed to fetch initial story data:", err);
             setError(err.message || "Could not load the story.");
-            updateDisplayedStorytellerTurn(0, []);
-            setPromptForChatInput(START_NEW_STORY_PROMPT_INPUT);
+            updateDisplayedStorytellerTurn(0, []); // Reset to default on error
+            setPromptForChatInput(START_NEW_STORY_PROMPT_INPUT); // Reset prompt
         } finally {
             setIsLoadingPage(false);
         }
     }, [token, isAuthenticated, updateDisplayedStorytellerTurn]);
 
+
+    // Auth check and initial data load trigger
     useEffect(() => {
         if (!isAuthLoading && !isAuthenticated) {
             const fromPath = titleQueryParam ? `/experiments/campfire-storytelling?title=${titleQueryParam}` : '/experiments/campfire-storytelling';
             router.push(`/login?from=${encodeURIComponent(fromPath)}`);
         } else if (isAuthenticated && token && router.isReady) {
+            // router.isReady ensures query params like titleQueryParam are available
             fetchInitialData(titleQueryParam);
         } else if (!isAuthLoading && !token) {
+            // If auth is loaded but no token (e.g., logged out), stop loading indicator.
             setIsLoadingPage(false);
         }
     }, [isAuthenticated, isAuthLoading, router.isReady, titleQueryParam, token, fetchInitialData, router]);
 
-    useEffect(() => { updateDisplayedStorytellerTurn(currentStorytellerTurnIndex, storytellerTurns); }, [currentStorytellerTurnIndex, storytellerTurns, updateDisplayedStorytellerTurn]);
-    useEffect(() => { if (chatHistoryRef.current && currentView === 'chatInput') chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight; }, [allChatTurns, currentView]);
-    useEffect(() => { if (storyTextRef.current && currentView === 'storyDisplay') storyTextRef.current.scrollTop = storyTextRef.current.scrollHeight; }, [displayedStoryText, currentView]);
+
+    // Update displayed turn when index or storytellerTurns change
+    useEffect(() => {
+        updateDisplayedStorytellerTurn(currentStorytellerTurnIndex, storytellerTurns);
+    }, [currentStorytellerTurnIndex, storytellerTurns, updateDisplayedStorytellerTurn]);
+
+    // Scroll chat/story text to bottom
+    useEffect(() => {
+        if (chatHistoryRef.current && currentView === 'chatInput') {
+            chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
+        }
+    }, [allChatTurns, currentView]); // Trigger on allChatTurns change when in chat view
+
+    useEffect(() => {
+        if (storyTextRef.current && currentView === 'storyDisplay') {
+            storyTextRef.current.scrollTop = storyTextRef.current.scrollHeight;
+        }
+    }, [displayedStoryText, currentView]); // Trigger on displayedStoryText change when in story view
+
 
     const handleInputChange = (event) => setUserInput(event.target.value);
 
+    // --- View Transition Handlers ---
     const handleTransitionToChat = () => {
         setAnimatingOut(true);
+        // Determine the prompt before switching
         const currentStorytellerTurn = storytellerTurns[currentStorytellerTurnIndex];
-        setPromptForChatInput(currentStorytellerTurn?.promptForUser || [...allChatTurns].reverse().find(t => t.sender === "Storyteller" && t.promptForUser)?.promptForUser || DEFAULT_PROMPT_FOR_USER);
-        setTimeout(() => { setCurrentView('chatInput'); setAnimatingOut(false); setTimeout(() => chatInputRef.current?.focus(), 0); }, 300);
+        const nextPrompt = currentStorytellerTurn?.promptForUser ||
+            [...allChatTurns].reverse().find(t => t.sender === "Storyteller" && t.promptForUser)?.promptForUser ||
+            DEFAULT_PROMPT_FOR_USER;
+        setPromptForChatInput(nextPrompt);
+        setTimeout(() => {
+            setCurrentView('chatInput');
+            setAnimatingOut(false);
+            setTimeout(() => chatInputRef.current?.focus(), 0); // Focus after animation
+        }, 300); // Corresponds to Slide timeout
     };
 
     const handleTransitionToStoryDisplay = () => {
         if (storytellerTurns.length > 0) {
             setAnimatingOut(true);
-            if (!titleQueryParam && !currentStoryId) {
+            // If it's an ongoing story (no title query, or story ID exists without title query)
+            // and we are transitioning from chat, ensure we show the *latest* storyteller turn.
+            if (!titleQueryParam && !currentStoryId) { // Heuristic: if no title in query, it's the "live" session
                 setCurrentStorytellerTurnIndex(storytellerTurns.length - 1);
             }
-            setTimeout(() => { setCurrentView('storyDisplay'); setAnimatingOut(false); }, 300);
-        } else { setError("There are no story parts to display yet."); }
+            // If titleQueryParam is set, currentStorytellerTurnIndex should already be 0 (or user navigated)
+            setTimeout(() => {
+                setCurrentView('storyDisplay');
+                setAnimatingOut(false);
+            }, 300);
+        } else {
+            setError("There are no story parts to display yet.");
+        }
     };
 
+    // --- Title Edit Handlers ---
     const handleTitleEditStart = () => {
-        setEditableStoryTitle(storyTitle);
+        setEditableStoryTitle(storyTitle); // Initialize with current title
         setIsEditingTitle(true);
         setTimeout(() => titleEditInputRef.current?.focus(), 0);
     };
@@ -224,244 +259,237 @@ export default function CampfireStorytellingPage() {
         const trimmedTitle = editableStoryTitle.trim();
         if (trimmedTitle) {
             setStoryTitle(trimmedTitle);
+            // TODO: If currentStoryId exists, consider an API call to update the story title on the backend
             if (currentStoryId) {
                 console.log("Title changed for story ID:", currentStoryId, "to:", trimmedTitle, "(Backend update for title not implemented in this step)");
+                // Example: updateStoryTitleOnBackend(currentStoryId, trimmedTitle);
             }
         }
         setIsEditingTitle(false);
     };
-    const handleTitleEditCancel = () => { setIsEditingTitle(false); setEditableStoryTitle(storyTitle); };
 
+    const handleTitleEditCancel = () => {
+        setIsEditingTitle(false);
+        setEditableStoryTitle(storyTitle); // Reset to original if cancelled
+    };
+
+
+    // --- Turn Submission Logic ---
     const handleSubmitTurn = async (event) => {
         event.preventDefault();
         if (!userInput.trim() || !token) {
-            setError(!token ? "You must be logged in." : "Input cannot be empty."); return;
-        }
-
-        if (titleQueryParam && currentStoryId && storytellerTurns.length > 0) {
-            setError("You are viewing a specific past story. New turns can be added to the ongoing untitled story or by starting a new one.");
+            setError(!token ? "You must be logged in to continue the story." : "Input cannot be empty.");
             return;
         }
 
-        setIsSubmitting(true); setError('');
-        const currentTurnText = userInput.trim();
-        const lastTurnInAll = allChatTurns.length > 0 ? allChatTurns[allChatTurns.length - 1] : {};
+        // Prevent adding turns if viewing a specific past story via title query param
+        if (titleQueryParam && currentStoryId && storytellerTurns.length > 0) {
+            setError("You are viewing a specific past story. New turns can be added to the ongoing untitled story or by starting a new one from the experiments page.");
+            return;
+        }
+
+
+        setIsSubmitting(true);
+        setError('');
+
+        const payload = prepareSubmitPayload({
+            userInput,
+            allChatTurns,
+            storyTitle,
+            currentStoryId
+        });
 
         try {
-            const payload = {
-                previousContent: lastTurnInAll.text || WAITING_FOR_TALE_TEXT,
-                inputText: currentTurnText,
-                chatTurns: allChatTurns.map(ct => ({
-                    id: ct.id, sender: ct.sender, text: ct.text,
-                    imageUrl: ct.imageUrl, promptForUser: ct.promptForUser,
-                })),
-                storyTitle: storyTitle.trim() ? storyTitle.trim() : "Untitled Story"
-            };
-
-            if (currentStoryId) {
-                payload.id = currentStoryId;
-            }
-
             const response = await fetch(BASE_API_ENDPOINT, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'Accept': 'application/json'},
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json',
+                },
                 body: JSON.stringify(payload),
             });
 
             if (!response.ok) {
                 let errorDetail = `Error submitting turn: ${response.status}`;
-                if (response.status === 401 || response.status === 403) errorDetail = "Session expired or unauthorized. Please log in again.";
-                else try { const errData = await response.json(); errorDetail = errData?.detail || errorDetail; } catch (e) {/*ignore*/}
+                if (response.status === 401 || response.status === 403) {
+                    errorDetail = "Session expired or unauthorized. Please log in again.";
+                    // Potentially call a global logout/redirect handler from AuthContext here
+                    // auth.handleUnauthorized(); // If you have one
+                    router.push('/login?sessionExpired=true');
+                } else {
+                    try {
+                        const errData = await response.json();
+                        errorDetail = errData?.detail || errorDetail;
+                    } catch (e) { /* ignore if error response isn't JSON */ }
+                }
                 throw new Error(errorDetail);
             }
+
             const data = await response.json() || {};
 
+            // Update story ID if a new story was created
             if (data.id && !currentStoryId) {
                 setCurrentStoryId(data.id);
             }
+            // Update story title if the backend modified or assigned it
             if (data.storyTitle) {
                 setStoryTitle(data.storyTitle);
-                setEditableStoryTitle(data.storyTitle);
+                setEditableStoryTitle(data.storyTitle); // Keep editable title in sync
             }
 
-            const updatedRawTurns = Array.isArray(data.chatTurns) ? data.chatTurns : [];
-            const updatedProcessedAllTurns = updatedRawTurns.map((turn, idx) => ({
-                id: turn?.id || `resp-turn-${idx}-${Date.now()}`, sender: turn?.sender || 'System',
-                text: turn?.text || (turn?.sender === 'User' ? 'User input' : DEFAULT_TURN_TEXT),
-                imageUrl: turn?.imageUrl || null, promptForUser: turn?.promptForUser || null
-            }));
+
+            const updatedProcessedAllTurns = processChatTurns(data.chatTurns);
             setAllChatTurns(updatedProcessedAllTurns);
 
-            const updatedStorytellerTurns = updatedProcessedAllTurns.filter(turn => turn.sender === "Storyteller");
+            const updatedStorytellerTurns = getStorytellerTurns(updatedProcessedAllTurns);
             setStorytellerTurns(updatedStorytellerTurns);
 
+            // If a new story was just started (no title in query, but now we have an ID and title from backend),
+            // remove the "title" query param if the user somehow navigated back to add a turn to a "named" story that was actually new.
+            // This is a bit of an edge case cleanup.
             if (titleQueryParam && data.id && data.storyTitle && router.query.title) {
                 const newQuery = { ...router.query };
-                delete newQuery.title;
-                router.replace({ pathname: router.pathname, query: newQuery }, undefined, { shallow: true });
+                delete newQuery.title; // Remove the title param as it's now an ongoing story
+                router.replace({
+                    pathname: router.pathname,
+                    query: newQuery,
+                }, undefined, { shallow: true });
             }
 
-            if (updatedStorytellerTurns.length > 0) setCurrentStorytellerTurnIndex(updatedStorytellerTurns.length - 1);
 
-            const newLastOverallTurn = updatedProcessedAllTurns.length > 0 ? updatedProcessedAllTurns[updatedProcessedAllTurns.length - 1] : null;
-            setPromptForChatInput(newLastOverallTurn?.sender === "Storyteller" && newLastOverallTurn.promptForUser ? newLastOverallTurn.promptForUser : ([...updatedProcessedAllTurns].reverse().find(t => t.sender === "Storyteller" && t.promptForUser)?.promptForUser || DEFAULT_PROMPT_FOR_USER));
+            // Set index to the latest storyteller turn
+            if (updatedStorytellerTurns.length > 0) {
+                setCurrentStorytellerTurnIndex(updatedStorytellerTurns.length - 1);
+            }
 
+            // Update prompt for the next chat input based on the new turns
+            setPromptForChatInput(getChatInputPrompt(updatedProcessedAllTurns, false)); // false because it's not a "new" story anymore
+
+            // Transition to story display view
             setAnimatingOut(true);
-            setTimeout(() => { setUserInput(''); setCurrentView('storyDisplay'); setAnimatingOut(false); }, 300);
+            setTimeout(() => {
+                setUserInput(''); // Clear input after successful submission
+                setCurrentView('storyDisplay');
+                setAnimatingOut(false);
+            }, 300);
+
 
         } catch (err) {
             console.error("Failed to submit story turn:", err);
-            setError(err.message || "Could not submit your turn.");
+            setError(err.message || "Could not submit your turn. Please try again.");
         } finally {
-            setIsSubmitting(false);
+            setIsSubmitting(false); // Only set if not transitioning on success
         }
     };
 
-    useEffect(() => { if (currentView === 'storyDisplay' && !animatingOut && isSubmitting) setIsSubmitting(false); }, [currentView, animatingOut, isSubmitting]);
+    // Reset isSubmitting if view changes away from chat while it was true (e.g., error, manual navigation)
+    // This was causing issues with the story display button remaining disabled.
+    useEffect(() => {
+        if (currentView === 'storyDisplay' && !animatingOut && isSubmitting) {
+            setIsSubmitting(false);
+        }
+    }, [currentView, animatingOut, isSubmitting]);
 
+
+    // Navigation for storyteller turns
     const handlePrevTurn = () => setCurrentStorytellerTurnIndex(prev => Math.max(0, prev - 1));
     const handleNextTurn = () => setCurrentStorytellerTurnIndex(prev => Math.min(storytellerTurns.length - 1, prev + 1));
 
+    // --- Page Layout and Render ---
     const pageContainerHeight = `calc(100vh - ${headerHeight}px - ${footerHeight}px)`;
 
+    // Loading and Auth States
     if (isAuthLoading || isLoadingPage) {
-        return (<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: pageContainerHeight, bgcolor: '#0A0A23', color: '#E0E0E0' }}><CircularProgress color="inherit"/> <Typography sx={{ml: 2}}>Warming up the campfire...</Typography></Box>);
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: pageContainerHeight, bgcolor: '#0A0A23', color: '#E0E0E0' }}>
+                <CircularProgress color="inherit"/>
+                <Typography sx={{ml: 2}}>Warming up the campfire...</Typography>
+            </Box>
+        );
     }
-    if (!isAuthenticated) {
-        return (<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: pageContainerHeight, bgcolor: '#0A0A23', color: '#E0E0E0' }}><Typography sx={{ml: 2}}>Please log in to join the story.</Typography></Box>);
+    if (!isAuthenticated) { // Should be handled by useEffect redirect, but as a fallback
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: pageContainerHeight, bgcolor: '#0A0A23', color: '#E0E0E0' }}>
+                <Typography sx={{ml: 2}}>Please log in to join the story.</Typography>
+            </Box>
+        );
     }
 
-    const pageStyles = { display: 'flex', flexDirection: 'column', height: pageContainerHeight, bgcolor: '#0A0A23', color: '#EAEAEA', p: { xs: 1, sm: 2 }, overflow: 'hidden', position: 'relative' };
+    const pageStyles = {
+        display: 'flex', flexDirection: 'column', height: pageContainerHeight,
+        bgcolor: '#0A0A23', color: '#EAEAEA',
+        p: { xs: 1, sm: 2 }, overflow: 'hidden', position: 'relative'
+    };
+
+    // Determine if user can submit a new turn. They cannot if they are viewing a specific, named past story.
     const canSubmitNewTurnOverall = !currentStoryId || storytellerTurns.length === 0 || !titleQueryParam;
 
 
     return (
         <>
-            <Head><title>{storyTitle || "Campfire Story"} - Musings</title><meta name="description" content="Interactive campfire storytelling."/></Head>
+            <Head>
+                <title>{storyTitle || "Campfire Story"} - Musings</title>
+                <meta name="description" content="Interactive campfire storytelling experiment on Musings." />
+                <meta name="robots" content="noindex" />
+            </Head>
             <Box sx={pageStyles}>
-                {error && <Alert severity="error" sx={{position: 'absolute', top: theme.spacing(1), left: theme.spacing(1), right: theme.spacing(1), zIndex: 1000, boxShadow: 3}} onClose={() => setError('')}>{error}</Alert>}
+                {error && (
+                    <Alert
+                        severity="error"
+                        sx={{position: 'absolute', top: theme.spacing(1), left: theme.spacing(1), right: theme.spacing(1), zIndex: 1000, boxShadow: 3}}
+                        onClose={() => setError('')}
+                    >
+                        {error}
+                    </Alert>
+                )}
 
-                <Slide direction="right" in={currentView === 'chatInput' && !animatingOut} mountOnEnter unmountOnExit timeout={300}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 2, overflowY: 'auto' }}>
-                        <Typography variant="h5" sx={{ textAlign: 'center', color: (promptForChatInput || "").includes("opening line") ? '#FFD700' : '#EAEAEA', mb: 1, flexShrink: 0 }}>
-                            {promptForChatInput}
-                        </Typography>
-                        <Paper sx={{ flexGrow: 1, p: 2, overflowY: 'auto', mb: 2, bgcolor: 'rgba(20,20,40,0.8)', border: '1px solid #444' }} ref={chatHistoryRef}>
-                            {allChatTurns.map((turn, index) => (
-                                <Box key={turn.id || `chat-hist-${index}-${Math.random()}`}>
-                                    {turn.sender === 'Storyteller' && turn.text && (<Typography paragraph sx={{ color: '#F0E68C', mb: 1, whiteSpace: 'pre-wrap' }}><strong>Storyteller:</strong> {turn.text}{turn.promptForUser && (<em style={{display: 'block', marginTop: '4px', color: '#c0b07c'}}>(Prompt: {turn.promptForUser})</em>)}</Typography>)}
-                                    {turn.sender === 'User' && turn.text && (<Typography paragraph sx={{ color: '#ADD8E6', mb: 1, whiteSpace: 'pre-wrap' }}><strong>{user?.username || 'You'}:</strong> {turn.text}</Typography>)}
-                                </Box>
-                            ))}
-                            {allChatTurns.length === 0 && (<Typography sx={{color: '#aaa', fontStyle: 'italic'}}>{titleQueryParam ? `Loading story: ${storyTitle}...` : WAITING_FOR_TALE_TEXT}</Typography>)}
-                        </Paper>
-                        <Box component="form" onSubmit={handleSubmitTurn} sx={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0, mt: 'auto' }}>
-                            {canSubmitNewTurnOverall && (
-                                <TextField fullWidth multiline maxRows={3} variant="outlined" placeholder="Your turn..." value={userInput} onChange={handleInputChange} inputRef={chatInputRef} disabled={isSubmitting}
-                                           sx={{ bgcolor: 'rgba(50,50,70,0.8)', '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#666' }, '&:hover fieldset': { borderColor: '#888' }, '&.Mui-focused fieldset': { borderColor: '#FFD700' } }, '& .MuiInputBase-input': { color: '#E0E0E0' }}} />
-                            )}
-                            <Box sx={{display: 'flex', gap: 1}}>
-                                <Button variant="outlined" startIcon={<MenuBookIcon />} onClick={handleTransitionToStoryDisplay} disabled={storytellerTurns.length === 0 || isSubmitting}
-                                        sx={{borderColor: '#FF8C00', color: '#FF8C00', '&:hover': {borderColor: '#FFA500', color: '#FFA500', backgroundColor: 'rgba(255,165,0,0.1)'}}}>View Story</Button>
-                                {canSubmitNewTurnOverall && (
-                                    <Button type="submit" variant="contained" endIcon={<SendIcon />} disabled={isSubmitting || !userInput.trim()} sx={{flexGrow: 1, bgcolor: '#FF8C00', '&:hover': {bgcolor: '#FFA500'}}}>
-                                        {isSubmitting ? <CircularProgress size={24} color="inherit"/> : "Send"}</Button>
-                                )}
-                                {!canSubmitNewTurnOverall && storytellerTurns.length > 0 && (
-                                    <Typography sx={{ flexGrow: 1, textAlign: 'center', color: '#aaa', alignSelf: 'center' }}>
-                                        Viewing a past story.
-                                    </Typography>
-                                )}
-                            </Box>
-                        </Box>
-                    </Box>
-                </Slide>
+                {currentView === 'chatInput' && (
+                    <ChatView
+                        inProp={currentView === 'chatInput' && !animatingOut}
+                        promptForChatInput={promptForChatInput}
+                        allChatTurns={allChatTurns}
+                        userInput={userInput}
+                        handleInputChange={handleInputChange}
+                        handleSubmitTurn={handleSubmitTurn}
+                        handleTransitionToStoryDisplay={handleTransitionToStoryDisplay}
+                        isSubmitting={isSubmitting}
+                        chatInputRef={chatInputRef}
+                        chatHistoryRef={chatHistoryRef}
+                        storytellerTurns={storytellerTurns}
+                        canSubmitNewTurnOverall={canSubmitNewTurnOverall}
+                        user={user}
+                        storyTitle={storyTitle}
+                        titleQueryParam={titleQueryParam}
+                    />
+                )}
 
-                <Slide direction="left" in={currentView === 'storyDisplay' && !animatingOut} mountOnEnter unmountOnExit timeout={300}>
-                    <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: { xs: 1, md: 1 }, flexShrink: 0, minHeight: '56px' }}>
-                            {isEditingTitle ? (
-                                <>
-                                    <TextField
-                                        value={editableStoryTitle}
-                                        inputRef={titleEditInputRef}
-                                        onChange={(e) => setEditableStoryTitle(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleTitleEditSave()}
-                                        size="small"
-                                        variant="outlined"
-                                        sx={{
-                                            mr: 1, flexGrow: 1,
-                                            '& .MuiInputBase-input': { color: '#FFD700', fontSize: { xs: '1.3rem', md: '1.75rem' } },
-                                            '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#FFD700' } }
-                                        }}
-                                    />
-                                    <Tooltip title="Save Title"><IconButton onClick={handleTitleEditSave} sx={{ color: '#4CAF50' }}><SaveIcon /></IconButton></Tooltip>
-                                    <Tooltip title="Cancel Edit"><IconButton onClick={handleTitleEditCancel} sx={{ color: '#FF7043' }}><CancelIcon /></IconButton></Tooltip>
-                                </>
-                            ) : (
-                                <>
-                                    <Typography variant="h4" component="h1" sx={{
-                                        textAlign: 'center', color: 'rgba(228,165,0,0.82)', textShadow: '0 0 6px #FFA500',
-                                        fontSize: { xs: '1.5rem', md: '2rem' }, flexGrow: 1,
-                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                        cursor: canSubmitNewTurnOverall ? 'pointer' : 'default',
-                                        '&:hover': { opacity: canSubmitNewTurnOverall ? 0.8 : 1 }
-                                    }}
-                                                onClick={canSubmitNewTurnOverall ? handleTitleEditStart : undefined}
-                                    >
-                                        {storyTitle}
-                                    </Typography>
-                                    {canSubmitNewTurnOverall && (
-                                        <Tooltip title="Edit Story Title">
-                                            <IconButton onClick={handleTitleEditStart} sx={{ color: '#FFD700', ml: 1 }} size="small">
-                                                <EditIcon fontSize="inherit" />
-                                            </IconButton>
-                                        </Tooltip>
-                                    )}
-                                </>
-                            )}
-                        </Box>
-
-                        <Grid container spacing={1} sx={{ flexGrow: 1, overflowY: 'scroll', minHeight: 0, p: { xs: 0.5, md: 1 }}}>
-                            <Grid item size={{xs:12, md:6}} sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 0.5, md: 1 }}}>
-                                <Box sx={{ width: '100%', flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow:'hidden', mb: { xs: 1, md: 0 }, borderRadius: '4px', border: '1px solid #444', background: 'rgba(0,0,0,0.2)' }}>
-                                    <StoryImageDisplay src={displayedImage} alt="Current story scene" />
-                                </Box>
-                                {/* RESTORED ARROW CONTROLS START */}
-                                {storytellerTurns?.length > 0 && (
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1, width: '100%', flexShrink:0 }}>
-                                        <IconButton onClick={handlePrevTurn} disabled={currentStorytellerTurnIndex === 0} sx={{color: '#FFD700'}}>
-                                            <ArrowBackIcon />
-                                        </IconButton>
-                                        <Typography variant="caption" sx={{color: '#aaa'}}>
-                                            Turn {currentStorytellerTurnIndex + 1} of {storytellerTurns.length}
-                                        </Typography>
-                                        <IconButton onClick={handleNextTurn} disabled={currentStorytellerTurnIndex >= storytellerTurns.length - 1} sx={{color: '#FFD700'}}>
-                                            <ArrowForwardIcon />
-                                        </IconButton>
-                                    </Box>
-                                )}
-                                {/* RESTORED ARROW CONTROLS END */}
-                            </Grid>
-                            <Grid item size={{xs:12, md:6}} sx={{ display: 'flex', flexDirection: 'column', p: { xs: 0.5, md: 1 }, minWidth: 0, height: '100%'}}>
-                                <Paper ref={storyTextRef} component="article" elevation={3}
-                                       sx={{ flexGrow: 1, overflowY: 'auto', p: { xs: 1.5, md: 2 }, bgcolor: 'rgba(44, 44, 44, 0.85)', border: '1px solid #555', borderRadius: '8px', color: '#f0f0f0', fontFamily: '"Georgia", "Times New Roman", serif', mb: 2, minHeight: {xs: '150px', md: '200px' }, minWidth: 0, width: '100%' }}>
-                                    <Typography component="div" sx={{ fontSize: { xs: '0.9rem', sm: '0.95rem', md: '1rem' }, lineHeight: 1.6, whiteSpace: 'pre-wrap', textAlign: 'left', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-                                        {displayedStoryText && displayedStoryText.trim() !== "" ? ( displayedStoryText.split('\n').map((paragraph, index, arr) => (<p key={`${index}-${currentStoryId || 'p'}-${Math.random()}`} style={{ marginBottom: index === arr.length - 1 ? 0 : '15px' }}>{paragraph}</p>)))
-                                            : ( <p>{isLoadingPage ? "Loading story..." : WAITING_FOR_TALE_TEXT}</p> )}
-                                    </Typography>
-                                </Paper>
-                                <Button variant="contained" onClick={handleTransitionToChat} fullWidth
-                                        sx={{ flexShrink: 0, bgcolor: '#FF8C00', '&:hover': { bgcolor: '#FFA500' }, fontSize: { xs: '0.85rem', md: '0.95rem' }, p: { xs: 1, md: 1.25 }}}
-                                        endIcon={<ArrowForwardIcon />}
-                                        disabled={!!titleQueryParam && !!currentStoryId && storytellerTurns.length > 0}
-                                >
-                                    {!!titleQueryParam && !!currentStoryId && storytellerTurns.length > 0 ? "Viewing Past Story" : `And then... (${(promptForNextTurnButton || DEFAULT_PROMPT_FOR_USER).substring(0,17)}${(promptForNextTurnButton || DEFAULT_PROMPT_FOR_USER).length > 20 ? '...' : ''})`}
-                                </Button>
-                            </Grid>
-                        </Grid>
-                    </Box>
-                </Slide>
+                {currentView === 'storyDisplay' && (
+                    <StoryDisplayView
+                        inProp={currentView === 'storyDisplay' && !animatingOut}
+                        storyTitle={storyTitle}
+                        editableStoryTitle={editableStoryTitle}
+                        setEditableStoryTitle={setEditableStoryTitle}
+                        isEditingTitle={isEditingTitle}
+                        handleTitleEditStart={handleTitleEditStart}
+                        handleTitleEditSave={handleTitleEditSave}
+                        handleTitleEditCancel={handleTitleEditCancel}
+                        titleEditInputRef={titleEditInputRef}
+                        displayedImage={displayedImage}
+                        storytellerTurns={storytellerTurns}
+                        currentStorytellerTurnIndex={currentStorytellerTurnIndex}
+                        handlePrevTurn={handlePrevTurn}
+                        handleNextTurn={handleNextTurn}
+                        storyTextRef={storyTextRef}
+                        displayedStoryText={displayedStoryText}
+                        handleTransitionToChat={handleTransitionToChat}
+                        promptForNextTurnButton={promptForNextTurnButton}
+                        canSubmitNewTurnOverall={canSubmitNewTurnOverall}
+                        currentStoryId={currentStoryId}
+                        isLoadingPage={isLoadingPage}
+                        titleQueryParam={titleQueryParam}
+                    />
+                )}
             </Box>
         </>
     );
