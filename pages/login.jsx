@@ -12,9 +12,10 @@ import {
   Paper,
   Alert,
   CircularProgress,
-  Grid,
-  Link as MuiLink, // Keep MUI Link for styling
+  // Grid, // Grid is no longer needed here for the old signup link
+  // Link as MuiLink, // MuiLink is no longer needed for the old signup link
   Snackbar,
+  Divider, // Added Divider for visual separation
 } from '@mui/material';
 
 export default function LoginPage() {
@@ -29,11 +30,8 @@ export default function LoginPage() {
   const router = useRouter();
   const auth = useAuth();
 
-  // Determine where to redirect after login
-  // Read 'from' query parameter, default to '/'
   const from = router.query.from || '/';
 
-  // Effect to show toast messages based on query parameters
   useEffect(() => {
     let message = '';
     let severity = 'success';
@@ -44,7 +42,6 @@ export default function LoginPage() {
       severity = 'success';
       queryParamToRemove = 'validated';
     } else if (router.query.signup === 'success') {
-      // Message from original signup flow (might be less common if validation flow is always used)
       message = 'Sign up initiated! Please check your email or sign in if validation complete.';
       severity = 'info';
       queryParamToRemove = 'signup';
@@ -59,26 +56,21 @@ export default function LoginPage() {
       setToastSeverity(severity);
       setToastOpen(true);
 
-      // Clean the URL query parameter(s) after displaying the message
-      // Create a shallow copy of the query object
       const newQuery = { ...router.query };
       if (queryParamToRemove) {
         delete newQuery[queryParamToRemove];
       }
-      // Remove 'from' as well if you don't want it lingering? Optional.
-      // delete newQuery.from;
-
       router.replace(
-        {
-          pathname: router.pathname,
-          query: newQuery,
-        },
-        undefined,
-        { shallow: true } // Perform shallow routing to avoid re-running data fetching functions
+          {
+            pathname: router.pathname,
+            query: newQuery,
+          },
+          undefined,
+          { shallow: true }
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router.query]); // Run effect when query params change
+  }, [router.query]);
 
 
   const handleSubmit = async (event) => {
@@ -87,23 +79,16 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-       // Assume auth.login resolves on success, throws on error
-       // It should NOT navigate internally anymore
       await auth.login(username, password);
-      // --- Navigation on Success (handled by page component) ---
-      router.replace(from); // Use replace to avoid login page in history
-      // --- End Navigation ---
+      router.replace(from);
     } catch (err) {
       console.error('Login failed:', err);
       setError(err.message || 'Login failed. Please check your credentials.');
-      // NOTE: If auth.login throws a specific error for unauthorized that the context already handles (like clearing state),
-      // you might not need to set the error here, but typically login page shows "invalid credentials".
     } finally {
       setLoading(false);
     }
   };
 
-  // Snackbar close handler
   const handleCloseToast = (event, reason) => {
     if (reason === 'clickaway') {
       return;
@@ -112,106 +97,126 @@ export default function LoginPage() {
   };
 
   return (
-    <>
-      <Head>
-        <title>Sign In - Musings</title>
-        <meta name="description" content="Sign in to access your Musings account." />
-      </Head>
-      <Container component="main" maxWidth="xs">
-        <Paper
-          elevation={3}
-          sx={{
-            marginTop: 8,
-            padding: 4,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
-          <Typography component="h1" variant="h5">
-            Sign in
-          </Typography>
-          {error && (
-            <Alert severity="error" sx={{ width: '100%', mt: 2 }}>
-              {error}
-            </Alert>
-          )}
-          <Box
-            component="form"
-            onSubmit={handleSubmit}
-            sx={{ mt: 1, width: '100%' }}
+      <>
+        <Head>
+          <title>Sign In - Musings</title>
+          <meta name="description" content="Sign in to access your Musings account." />
+        </Head>
+        <Container component="main" maxWidth="xs" sx={{ pb: 4 }}> {/* Added padding bottom to container */}
+          <Paper
+              elevation={3}
+              sx={{
+                marginTop: 8,
+                padding: { xs: 3, sm: 4 }, // Adjusted padding
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
           >
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="username"
-              label="Username"
-              name="username"
-              autoComplete="username"
-              autoFocus
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              disabled={loading}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              name="password"
-              label="Password"
-              type="password"
-              id="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={loading}
-            />
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              sx={{ mt: 3, mb: 2 }}
-              disabled={loading}
+            <Typography component="h1" variant="h5">
+              Sign in
+            </Typography>
+            {error && (
+                <Alert severity="error" sx={{ width: '100%', mt: 2 }}>
+                  {error}
+                </Alert>
+            )}
+            <Box
+                component="form"
+                onSubmit={handleSubmit}
+                sx={{ mt: 1, width: '100%' }}
             >
-              {loading ? (
-                <CircularProgress size={24} color="inherit" />
-              ) : (
-                'Sign In'
-              )}
-            </Button>
-            <Grid container justifyContent="flex-end">
-              <Grid item>
-                {/* --- Use Next.js Link --- */}
-                <Link href="/signup" passHref legacyBehavior>
-                  <MuiLink variant="body2">
-                    {"Don't have an account? Sign Up"}
-                  </MuiLink>
-                </Link>
-                {/* --- End Next.js Link --- */}
-              </Grid>
-            </Grid>
-          </Box>
-        </Paper>
+              <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  id="username"
+                  label="Username"
+                  name="username"
+                  autoComplete="username"
+                  autoFocus
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={loading}
+              />
+              <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  name="password"
+                  label="Password"
+                  type="password"
+                  id="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+              />
+              <Button
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  sx={{ mt: 3, mb: 2 }}
+                  disabled={loading}
+              >
+                {loading ? (
+                    <CircularProgress size={24} color="inherit" />
+                ) : (
+                    'Sign In'
+                )}
+              </Button>
+              {/* Removed the old Grid for signup link from here */}
+            </Box>
+          </Paper>
 
-        {/* --- Snackbar for Toasts --- */}
-        <Snackbar
-          open={toastOpen}
-          autoHideDuration={6000}
-          onClose={handleCloseToast}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert
-            onClose={handleCloseToast}
-            severity={toastSeverity}
-            variant="filled"
-            sx={{ width: '100%' }}
+          {/* New Prominent Sign-Up Section */}
+          <Paper
+              variant="outlined" // Use outlined variant for a slightly different feel
+              sx={{
+                marginTop: 4,
+                padding: { xs: 2, sm: 3 },
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                borderColor: 'divider', // Use theme's divider color for the border
+              }}
           >
-            {toastMessage}
-          </Alert>
-        </Snackbar>
-        {/* --- End Snackbar --- */}
-      </Container>
-    </>
+            <Typography component="h2" variant="h6" gutterBottom sx={{ color: 'text.primary' }}>
+              New to Musings?
+            </Typography>
+            <Typography variant="body1" color="text.secondary" textAlign="center" sx={{ mb: 2 }}>
+              Create an account and get 50 FREE story pages with illustrations per day and be able to comment on posts!
+            </Typography>
+            <Link href="/signup" passHref legacyBehavior>
+              <Button
+                  variant="contained"
+                  color="secondary" // Use secondary color to differentiate
+                  fullWidth
+                  sx={{ py: 1.5 }} // Make button a bit taller
+              >
+                Create Your Account
+              </Button>
+            </Link>
+          </Paper>
+
+
+          {/* Snackbar for Toasts */}
+          <Snackbar
+              open={toastOpen}
+              autoHideDuration={6000}
+              onClose={handleCloseToast}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+          >
+            <Alert
+                onClose={handleCloseToast}
+                severity={toastSeverity}
+                variant="filled"
+                sx={{ width: '100%' }}
+            >
+              {toastMessage}
+            </Alert>
+          </Snackbar>
+        </Container>
+      </>
   );
 }

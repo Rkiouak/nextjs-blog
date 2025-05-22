@@ -1,19 +1,40 @@
 // src/components/Header.jsx
-import React from 'react';
-import { AppBar, Toolbar, Typography, Button, Box, IconButton } from '@mui/material';
+import React, { useState } from 'react';
+import { AppBar, Toolbar, Typography, Button, Box, IconButton, Menu, MenuItem } from '@mui/material'; // Added Menu, MenuItem
 import Link from 'next/link';
+import { useRouter } from 'next/router'; // Added useRouter
 import { useAuth } from '@/context/AuthContext';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import ScienceIcon from '@mui/icons-material/Science';
 
 function Header() {
-    const { user, isAuthenticated, logout } = useAuth(); // Destructure user, isAuthenticated, and logout
+    const { user, isAuthenticated, logout } = useAuth();
+    const router = useRouter(); // Hook to get current route
+
+    // State for User Menu
+    const [anchorEl, setAnchorEl] = useState(null);
+    const isMenuOpen = Boolean(anchorEl);
+
+    const handleProfileMenuOpen = (event) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleMenuClose = () => {
+        setAnchorEl(null);
+    };
+
+    const handleLogout = () => {
+        logout();
+        handleMenuClose();
+        router.push('/'); // Redirect to home after logout
+    };
+
+    const isCurrentPage = (path) => router.pathname === path;
 
     return (
         <AppBar position="static">
             <Toolbar>
-                {/* Logo */}
+                {/* Main Site Logo */}
                 <Box
                     component="img"
                     sx={{
@@ -24,68 +45,137 @@ function Header() {
                         borderRadius: '50%',
                         objectFit: 'cover',
                     }}
-                    alt="logo"
-                    src={"/newfy.jpeg"}
+                    alt="Musings logo"
+                    src={"/newfy.jpeg"} // Main site logo
                 />
 
-                {/* Group Title and Home Button */}
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Typography variant="h6" component="div" sx={{ mr: 2 }}>
-                        <Link href="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-                            Musings
-                        </Link>
-                    </Typography>
-                    <Button color="inherit" component={Link} href="/">
-                        Home
-                    </Button>
-                </Box>
+                {/* Site Title */}
+                <Typography variant="h6" component="div" sx={{ mr: 2 }}>
+                    <Link href="/" style={{ textDecoration: 'none', color: 'inherit' }}>
+                        Musings
+                    </Link>
+                </Typography>
+
+                {/* Home Button with Active State */}
+                <Button
+                    color="inherit"
+                    component={Link}
+                    href="/"
+                    sx={{
+                        whiteSpace: 'nowrap',
+                        // Example active style:
+                        backgroundColor: isCurrentPage('/') ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                        '&:hover': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                        }
+                    }}
+                >
+                    Home
+                </Button>
 
                 {/* Spacer */}
                 <Box sx={{ flexGrow: 1 }} />
 
-                {/* Auth Buttons Container */}
-                <Box>
+                {/* Right-hand side controls */}
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     {isAuthenticated ? (
                         <>
-                            {/* Conditionally render Create Post button */}
                             {user?.email === 'mrkiouak@gmail.com' && (
                                 <Button
                                     color="inherit"
                                     component={Link}
                                     href="/create-post"
                                     startIcon={<AddCircleOutlineIcon />}
-                                    sx={{ mr: 1.5 }}
+                                    sx={{
+                                        mr: { xs: 0.5, sm: 1.5 },
+                                        whiteSpace: 'nowrap',
+                                        display: { xs: 'none', sm: 'inline-flex' } // Hide on very small screens if needed
+                                    }}
                                 >
                                     Create Post
                                 </Button>
                             )}
 
+                            {/* Updated Ki Storygen Link */}
                             <Button
                                 color="inherit"
                                 component={Link}
-                                href="/experiments"
-                                startIcon={<ScienceIcon />}
-                                sx={{ mr: 1.5 }}
+                                href="/experiments" // This path still points to the experiments page
+                                sx={{
+                                    mr: { xs: 0.5, sm: 1.5 },
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    whiteSpace: 'nowrap',
+                                    padding: '6px 12px', // Adjust padding for better spacing with larger logo
+                                    '&:hover': {
+                                        backgroundColor: 'rgba(255, 255, 255, 0.15)', // Subtle hover background
+                                        '& .ki-logo, & .ki-text': { // Target children by class
+                                            opacity: 0.85, // Slightly dim on hover for effect
+                                        }
+                                    },
+                                    backgroundColor: isCurrentPage('/experiments') ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                                }}
                             >
-                                Experiments
+                                <Box
+                                    className="ki-logo" // Added class for targeting
+                                    component="img"
+                                    src="/ki-storygen-logo.png" // <<<<---- ENSURE THIS LOGO PATH IS CORRECT
+                                    alt="Ki Storygen Logo"
+                                    sx={{
+                                        height: 38, // Updated size
+                                        width: 38,  // Updated size
+                                        mr: 0.75,
+                                        objectFit: 'contain',
+                                        borderRadius: '50%', // Making Ki Storygen logo circular
+                                        transition: 'opacity 0.2s ease-in-out',
+                                    }}
+                                />
+                                <Typography component="span" className="ki-text" sx={{ transition: 'opacity 0.2s ease-in-out' }}>
+                                    Ki Storygen
+                                </Typography>
                             </Button>
 
+                            {/* User Menu */}
                             <IconButton
-                                color="inherit"
-                                component={Link}
-                                href="/profile"
+                                size="large"
+                                edge="end"
                                 aria-label="account of current user"
-                                sx={{ mr: 1.5 }}
+                                aria-controls="primary-search-account-menu"
+                                aria-haspopup="true"
+                                onClick={handleProfileMenuOpen}
+                                color="inherit"
                             >
                                 <AccountCircleIcon />
                             </IconButton>
-                            <Button color="inherit" onClick={logout}>
-                                Logout
-                            </Button>
+                            <Menu
+                                id="primary-search-account-menu"
+                                anchorEl={anchorEl}
+                                anchorOrigin={{
+                                    vertical: 'bottom',
+                                    horizontal: 'right',
+                                }}
+                                keepMounted
+                                transformOrigin={{
+                                    vertical: 'top',
+                                    horizontal: 'right',
+                                }}
+                                open={isMenuOpen}
+                                onClose={handleMenuClose}
+                                PaperProps={{
+                                    sx: {
+                                        mt: 1, // Add some margin-top to the menu
+                                    }
+                                }}
+                            >
+                                <MenuItem component={Link} href="/profile" onClick={handleMenuClose}>
+                                    Profile
+                                </MenuItem>
+                                <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                            </Menu>
                         </>
                     ) : (
                         <>
-                            <Button color="inherit" component={Link} href="/login">
+                            <Button color="inherit" component={Link} href="/login" sx={{ whiteSpace: 'nowrap' }}>
                                 Login
                             </Button>
                             <Button
@@ -93,7 +183,7 @@ function Header() {
                                 color="secondary"
                                 component={Link}
                                 href="/signup"
-                                sx={{ ml: 1.5 }}
+                                sx={{ ml: 1.5, whiteSpace: 'nowrap' }}
                             >
                                 Sign Up
                             </Button>

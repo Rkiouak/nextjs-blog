@@ -1,56 +1,70 @@
 import React from 'react';
-import Link from 'next/link'; // Use Next.js Link
-import { Card, CardContent, CardMedia, Typography, CardActions, Button } from '@mui/material';
+import Link from 'next/link';
+import { Card, CardContent, CardMedia, Typography, CardActions, Button, Box } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 
-// Expects a 'post' object prop with id, title, snippet, imageUrl, date, author
 function BlogPostPreview({ post }) {
-    const theme = useTheme(); // Get the theme object
+    const theme = useTheme();
 
-    // --- Defensive Check ---
-    // If post data or essential fields like id or title are missing, render nothing or a placeholder
     if (!post || !post.id || !post.title) {
         console.warn('BlogPostPreview: Skipping render due to missing post data or ID/title.', post);
-        return null; // Don't render the card if data is incomplete
+        return null;
     }
-    // --- End Check ---
-
-    // Construct the link URL safely now that we know post.id exists
     const postUrl = `/post/${post.id}`;
 
     return (
         <Card sx={{
             display: 'flex',
             flexDirection: 'column',
-            height: '100%', // Ensure cards in a grid row have same height
+            height: '100%',
             transition: theme.transitions.create(['box-shadow', 'transform'], { duration: theme.transitions.duration.short }),
             '&:hover': {
                 transform: 'translateY(-4px)',
-                boxShadow: theme.shadows[4],
+                boxShadow: theme.shadows[6],
             }
         }}>
             {post.imageUrl && (
-                <CardMedia
-                    component="img"
-                    height="140" // Fixed height for consistency
-                    image={post.imageUrl}
-                    alt={post.title}
-                    sx={{ objectFit: 'cover' }} // Ensure image covers the area
-                />
+                <Box sx={{ overflow: 'hidden', height: 160 }}> {/* Set fixed height for the image container */}
+                    <CardMedia
+                        component="img"
+                        image={post.imageUrl}
+                        alt={post.title}
+                        sx={{
+                            objectFit: 'cover',
+                            width: '100%',
+                            height: '100%', // Make image fill the fixed-height container
+                            transition: 'transform 0.35s ease-in-out',
+                            '&:hover': {
+                                transform: 'scale(1.05)',
+                            }
+                        }}
+                    />
+                </Box>
             )}
-            <CardContent sx={{ flexGrow: 1 }}> {/* Allow content to grow */}
-                <Typography gutterBottom variant="h5" component="div">
+            <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                <Typography gutterBottom variant="h5" component="div" sx={{ fontWeight: 'medium' }}>
                     {post.title}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    {/* Add defensive checks for author/date if they might be missing */}
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5 }}>
                     By {post.author || 'Unknown Author'} on {post.date || 'Unknown Date'}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                        mb: 2,
+                        flexGrow: 1,
+                        display: '-webkit-box',
+                        WebkitBoxOrient: 'vertical',
+                        WebkitLineClamp: 3,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                    }}
+                >
                     {post.snippet}
                 </Typography>
             </CardContent>
-            <CardActions>
+            <CardActions sx={{ mt: 'auto', pt: 0 }}>
                 <Link href={postUrl} passHref legacyBehavior>
                     <Button size="small" component="a">
                         Read More
