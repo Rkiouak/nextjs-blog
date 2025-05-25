@@ -1,14 +1,14 @@
 // src/components/Header.jsx
-import React, { useState } from 'react';
-import { AppBar, Toolbar, Typography, Button, Box, IconButton, Menu, MenuItem } from '@mui/material'; // Added Menu, MenuItem
+import React, {useState} from 'react';
+import {AppBar, Toolbar, Typography, Button, Box, IconButton, Menu, MenuItem} from '@mui/material'; // Added Menu, MenuItem
 import Link from 'next/link';
-import { useRouter } from 'next/router'; // Added useRouter
-import { useAuth } from '@/context/AuthContext';
+import {useRouter} from 'next/router'; // Added useRouter
+import {useAuth} from '@/context/AuthContext';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 
 function Header() {
-    const { user, isAuthenticated, logout } = useAuth();
+    const {user, isAuthenticated, logout} = useAuth();
     const router = useRouter(); // Hook to get current route
 
     // State for User Menu
@@ -33,12 +33,12 @@ function Header() {
 
     return (
         <AppBar position="static">
-            <Toolbar>
+            <Toolbar sx={{minHeight: '48px', '@media (min-width:600px)': {minHeight: '56px'}, py: 0.5}}>
                 {/* Main Site Logo */}
                 <Box
                     component="img"
                     sx={{
-                        display: { xs: 'none', md: 'flex' },
+                        display: {xs: 'none', md: 'flex'},
                         mr: 1,
                         height: 52,
                         width: 52,
@@ -50,8 +50,8 @@ function Header() {
                 />
 
                 {/* Site Title */}
-                <Typography variant="h6" component="div" sx={{ mr: 2 }}>
-                    <Link href="/" style={{ textDecoration: 'none', color: 'inherit' }}>
+                <Typography variant="h6" component="div" sx={{mr: 2}}>
+                    <Link href="/" style={{textDecoration: 'none', color: 'inherit'}}>
                         Musings
                     </Link>
                 </Typography>
@@ -72,12 +72,26 @@ function Header() {
                 >
                     Home
                 </Button>
-
+                <Button
+                    color="inherit"
+                    component={Link}
+                    href="/resume"
+                    sx={{
+                        whiteSpace: 'nowrap',
+                        ml: 1,
+                        backgroundColor: isCurrentPage('/resume') ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                        '&:hover': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                        }
+                    }}
+                >
+                    Resume
+                </Button>
                 {/* Spacer */}
-                <Box sx={{ flexGrow: 1 }} />
+                <Box sx={{flexGrow: 1}}/>
 
                 {/* Right-hand side controls */}
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Box sx={{display: 'flex', alignItems: 'center'}}>
                     {isAuthenticated ? (
                         <>
                             {user?.email === 'mrkiouak@gmail.com' && (
@@ -85,24 +99,23 @@ function Header() {
                                     color="inherit"
                                     component={Link}
                                     href="/create-post"
-                                    startIcon={<AddCircleOutlineIcon />}
+                                    startIcon={<AddCircleOutlineIcon/>}
                                     sx={{
-                                        mr: { xs: 0.5, sm: 1.5 },
+                                        mr: {xs: 0.5, sm: 1.5},
                                         whiteSpace: 'nowrap',
-                                        display: { xs: 'none', sm: 'inline-flex' } // Hide on very small screens if needed
+                                        display: {xs: 'none', sm: 'inline-flex'} // Hide on very small screens if needed
                                     }}
                                 >
                                     Create Post
                                 </Button>
                             )}
 
-                            {/* Updated Ki Storygen Link */}
                             <Button
                                 color="inherit"
                                 component={Link}
-                                href="/experiments" // This path still points to the experiments page
+                                href="https://ki-storygen.com"
                                 sx={{
-                                    mr: { xs: 0.5, sm: 1.5 },
+                                    mr: {xs: 0.5, sm: 1.5},
                                     display: 'flex',
                                     alignItems: 'center',
                                     whiteSpace: 'nowrap',
@@ -113,24 +126,25 @@ function Header() {
                                             opacity: 0.85, // Slightly dim on hover for effect
                                         }
                                     },
-                                    backgroundColor: isCurrentPage('/experiments') ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                                    backgroundColor: 'transparent',
                                 }}
                             >
                                 <Box
-                                    className="ki-logo" // Added class for targeting
+                                    className="ki-logo"
                                     component="img"
-                                    src="/ki-storygen-logo.png" // <<<<---- ENSURE THIS LOGO PATH IS CORRECT
+                                    src="/ki-storygen-logo.png"
                                     alt="Ki Storygen Logo"
                                     sx={{
-                                        height: 38, // Updated size
-                                        width: 38,  // Updated size
+                                        height: 38,
+                                        width: 38,
                                         mr: 0.75,
                                         objectFit: 'contain',
                                         borderRadius: '50%', // Making Ki Storygen logo circular
                                         transition: 'opacity 0.2s ease-in-out',
                                     }}
                                 />
-                                <Typography component="span" className="ki-text" sx={{ transition: 'opacity 0.2s ease-in-out' }}>
+                                <Typography component="span" className="ki-text"
+                                            sx={{transition: 'opacity 0.2s ease-in-out'}}>
                                     Ki Storygen
                                 </Typography>
                             </Button>
@@ -145,7 +159,7 @@ function Header() {
                                 onClick={handleProfileMenuOpen}
                                 color="inherit"
                             >
-                                <AccountCircleIcon />
+                                <AccountCircleIcon/>
                             </IconButton>
                             <Menu
                                 id="primary-search-account-menu"
@@ -175,7 +189,7 @@ function Header() {
                         </>
                     ) : (
                         <>
-                            <Button color="inherit" component={Link} href="/login" sx={{ whiteSpace: 'nowrap' }}>
+                            <Button color="inherit" component={Link} href="/login" sx={{whiteSpace: 'nowrap'}}>
                                 Login
                             </Button>
                             <Button
@@ -183,7 +197,7 @@ function Header() {
                                 color="secondary"
                                 component={Link}
                                 href="/signup"
-                                sx={{ ml: 1.5, whiteSpace: 'nowrap' }}
+                                sx={{ml: 1.5, whiteSpace: 'nowrap'}}
                             >
                                 Sign Up
                             </Button>

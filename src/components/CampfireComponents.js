@@ -13,6 +13,11 @@ import {
     Slide,
     useTheme,
     alpha,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -22,6 +27,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import AddCommentIcon from '@mui/icons-material/AddComment';
+import PublicIcon from '@mui/icons-material/Public';
 import { DEFAULT_IMAGE_URL, WAITING_FOR_TALE_TEXT } from '@/utils/campfireUtils';
 
 export const StoryImageDisplay = ({ src, alt, sx }) => (
@@ -38,8 +44,6 @@ export const StoryImageDisplay = ({ src, alt, sx }) => (
     />
 );
 
-// ChatView remains the same as the last version you have and are happy with.
-// Ensure it's the version with the message bubble styling.
 export const ChatView = ({
                              inProp,
                              promptForChatInput,
@@ -52,13 +56,11 @@ export const ChatView = ({
                              chatInputRef,
                              chatHistoryRef,
                              storytellerTurns,
-                             canSubmitNewTurnOverall,
                              user,
                              storyTitle,
                              titleQueryParam,
                          }) => {
     const theme = useTheme();
-    const userEmail = user?.email || 'User';
 
     return (
         <Slide direction="right" in={inProp} mountOnEnter unmountOnExit timeout={300}>
@@ -103,7 +105,7 @@ export const ChatView = ({
                                     component="div"
                                     sx={{
                                         fontWeight: 'bold',
-                                        color: turn.sender === 'User' ? theme.palette.primary.dark : theme.palette.text.primary, // CHANGED HERE
+                                        color: turn.sender === 'User' ? theme.palette.primary.dark : theme.palette.text.primary,
                                         mb: 0.5,
                                     }}
                                 >
@@ -142,34 +144,30 @@ export const ChatView = ({
                     )}
                 </Paper>
                 <Box component="form" onSubmit={handleSubmitTurn} sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, flexShrink: 0, mt: 'auto' }}>
-                    {canSubmitNewTurnOverall && (
-                        <Typography
-                            variant="subtitle1" // Using subtitle1 for a bit more emphasis than body2
-                            sx={{
-                                color: theme.palette.primary.dark, // Or text.secondary for less emphasis
-                                mb: 1,         // Margin below prompt, before TextField
-                                px: 0.5,
-                                fontWeight: 'medium',
-                                textAlign: 'left', // Or 'center'
-                            }}
-                        >
-                            {promptForChatInput}
-                        </Typography>
-                    )}
-                    {canSubmitNewTurnOverall && (
-                        <TextField
-                            fullWidth
-                            multiline
-                            maxRows={4}
-                            variant="outlined"
-                            placeholder="What happens next?"
-                            value={userInput}
-                            onChange={handleInputChange}
-                            inputRef={chatInputRef}
-                            disabled={isSubmitting}
-                            sx={{ bgcolor: theme.palette.background.paper }}
-                        />
-                    )}
+                    <Typography
+                        variant="subtitle1"
+                        sx={{
+                            color: theme.palette.primary.dark,
+                            mb: 1,
+                            px: 0.5,
+                            fontWeight: 'medium',
+                            textAlign: 'left',
+                        }}
+                    >
+                        {promptForChatInput}
+                    </Typography>
+                    <TextField
+                        fullWidth
+                        multiline
+                        maxRows={4}
+                        variant="outlined"
+                        placeholder="What happens next?"
+                        value={userInput}
+                        onChange={handleInputChange}
+                        inputRef={chatInputRef}
+                        disabled={isSubmitting}
+                        sx={{ bgcolor: theme.palette.background.paper }}
+                    />
                     <Box sx={{display: 'flex', gap: 1.5}}>
                         <Button
                             variant="outlined"
@@ -181,23 +179,16 @@ export const ChatView = ({
                         >
                             View Story
                         </Button>
-                        {canSubmitNewTurnOverall && (
-                            <Button
-                                type="submit"
-                                variant="contained"
-                                color="secondary"
-                                endIcon={<SendIcon />}
-                                disabled={isSubmitting || !userInput.trim()}
-                                sx={{flexGrow: 1}}
-                            >
-                                {isSubmitting ? <CircularProgress size={24} color="inherit"/> : "Send"}
-                            </Button>
-                        )}
-                        {!canSubmitNewTurnOverall && storytellerTurns.length > 0 && (
-                            <Typography sx={{ flexGrow: 1, textAlign: 'center', color: theme.palette.text.disabled, alignSelf: 'center' }}>
-                                Viewing a past story.
-                            </Typography>
-                        )}
+                        <Button
+                            type="submit"
+                            variant="contained"
+                            color="secondary"
+                            endIcon={<SendIcon />}
+                            disabled={isSubmitting || !userInput.trim()}
+                            sx={{flexGrow: 1}}
+                        >
+                            {isSubmitting ? <CircularProgress size={24} color="inherit"/> : "Send"}
+                        </Button>
                     </Box>
                 </Box>
             </Box>
@@ -208,7 +199,7 @@ export const ChatView = ({
 
 export const StoryDisplayView = ({
                                      inProp,
-                                     storyTitle,
+                                     storyTitle, // Keep storyTitle prop
                                      editableStoryTitle,
                                      setEditableStoryTitle,
                                      isEditingTitle,
@@ -225,27 +216,41 @@ export const StoryDisplayView = ({
                                      displayedStoryText,
                                      handleTransitionToChat,
                                      promptForNextTurnButton,
-                                     canSubmitNewTurnOverall,
-                                     currentStoryId,
+                                     // currentStoryId, // No longer primary for this button's logic
                                      isLoadingPage,
                                      titleQueryParam,
                                      isSubmitting,
+                                     isStoryPublic,
+                                     onOpenMakePublicDialog,
+                                     isMakePublicDialogOpen,
+                                     onCloseMakePublicDialog,
+                                     onConfirmMakePublic,
+                                     isMakingPublic,
                                  }) => {
     const theme = useTheme();
+    const canEditTitleCurrentStory = !isStoryPublic;
+
+    // Determine if any icon will be shown to the right of the title
+    const showEditIcon = canEditTitleCurrentStory;
+    const showMakePublicIcon = storyTitle && storyTitle.trim() !== "" && storyTitle.trim() !== "New Ki Story" && !isStoryPublic;
+    const showIsPublicIcon = storyTitle && storyTitle.trim() !== "" && storyTitle.trim() !== "New Ki Story" && isStoryPublic;
+    const anyRightIconVisible = showEditIcon || showMakePublicIcon || showIsPublicIcon;
+
+
     return (
         <Slide direction="left" in={inProp} mountOnEnter unmountOnExit timeout={300}>
             <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', p: {xs: 0.5, sm: 1} }}>
-                {/* Story Title Section */}
                 <Box sx={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    pt: 0.5, // Reduced top padding
+                    pt: 0.5,
                     pb: 1.5,
-                    mb: 1.5, // Reduced bottom margin
+                    mb: 1.5,
                     flexShrink: 0,
                     minHeight: '56px',
                     borderBottom: `1px solid ${theme.palette.divider}`,
+                    position: 'relative',
                 }}>
                     <Box
                         component="img"
@@ -266,6 +271,7 @@ export const StoryDisplayView = ({
                                     mr: 1, flexGrow: 1,
                                     '& .MuiInputBase-input': { color: theme.palette.primary.dark, fontSize: { xs: '1.3rem', md: '1.75rem' } },
                                 }}
+                                disabled={isStoryPublic}
                             />
                             <Tooltip title="Save Title"><IconButton onClick={handleTitleEditSave} sx={{ color: theme.palette.success.main }}><SaveIcon /></IconButton></Tooltip>
                             <Tooltip title="Cancel Edit"><IconButton onClick={handleTitleEditCancel} sx={{ color: theme.palette.error.main }}><CancelIcon /></IconButton></Tooltip>
@@ -278,33 +284,52 @@ export const StoryDisplayView = ({
                                 sx={{
                                     textAlign: 'center',
                                     color: theme.palette.text.primary,
-                                    fontSize: { xs: '1.5rem', md: '2rem' }, flexGrow: 1,
+                                    fontSize: { xs: '1.5rem', md: '2rem' },
+                                    flexGrow: 1,
                                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                    cursor: canSubmitNewTurnOverall ? 'pointer' : 'default',
-                                    '&:hover': { opacity: canSubmitNewTurnOverall ? 0.8 : 1 }
-
+                                    cursor: canEditTitleCurrentStory ? 'pointer' : 'default',
+                                    '&:hover': { opacity: canEditTitleCurrentStory ? 0.8 : 1 },
+                                    pr: anyRightIconVisible ? {xs: 6, sm: 8} : 0,
                                 }}
-                                onClick={canSubmitNewTurnOverall ? handleTitleEditStart : undefined}
+                                onClick={canEditTitleCurrentStory ? handleTitleEditStart : undefined}
                             >
                                 {storyTitle || "Ki Story"}
                             </Typography>
-                            {canSubmitNewTurnOverall && (
-                                <Tooltip title="Edit Story Title">
-                                    <IconButton onClick={handleTitleEditStart} sx={{ color: theme.palette.text.secondary, ml: 1 }} size="small">
-                                        <EditIcon fontSize="inherit" />
-                                    </IconButton>
-                                </Tooltip>
-                            )}
+                            <Box sx={{ display: 'flex', alignItems: 'center', position: 'absolute', right: theme.spacing(1)}}>
+                                {canEditTitleCurrentStory && (
+                                    <Tooltip title="Edit Story Title">
+                                        <IconButton onClick={handleTitleEditStart} sx={{ color: theme.palette.text.secondary }} size="small">
+                                            <EditIcon fontSize="inherit" />
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
+                                {/* Make Public button logic: show if storyTitle is meaningful and not public */}
+                                {storyTitle && storyTitle.trim() !== "" && storyTitle.trim() !== "New Ki Story" && !isStoryPublic && (
+                                    <Tooltip title="Make Story Public">
+                                        <IconButton
+                                            onClick={onOpenMakePublicDialog}
+                                            sx={{ color: theme.palette.info.main, ml: canEditTitleCurrentStory ? 0.5 : 0 }}
+                                            size="small"
+                                            disabled={isMakingPublic}
+                                        >
+                                            <PublicIcon fontSize="inherit" />
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
+                                {storyTitle && storyTitle.trim() !== "" && storyTitle.trim() !== "New Ki Story" && isStoryPublic && (
+                                    <Tooltip title="Story is Public">
+                                        <PublicIcon fontSize="inherit" sx={{ color: theme.palette.success.main, ml: 0.5, cursor: 'default' }} />
+                                    </Tooltip>
+                                )}
+                            </Box>
                         </>
                     )}
                 </Box>
 
-                {/* Main Content Grid */}
                 <Grid container spacing={{xs: 1, sm:2}} sx={{ flexGrow: 1, overflowY: 'scroll', minHeight: 0 }}>
-                    {/* Image Display Column */}
-                    <Grid item size={{xs:12, md:5}} sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 0.5, md: 1 }}}>
+                    <Grid item size={{ xs:12, md:7 }} sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 0.5, md: 1 }}}>
                         <Paper
-                            elevation={3} // Increased elevation
+                            elevation={3}
                             sx={{
                                 width: '100%',
                                 flexGrow: 1,
@@ -313,7 +338,7 @@ export const StoryDisplayView = ({
                                 justifyContent: 'center',
                                 overflow:'hidden',
                                 mb: { xs: 1, md: 0 },
-                                p: 1.5, // Increased padding
+                                p: 1.5,
                                 bgcolor: theme.palette.background.default,
                             }}
                         >
@@ -333,12 +358,11 @@ export const StoryDisplayView = ({
                             </Box>
                         )}
                     </Grid>
-                    {/* Story Text & Action Column */}
-                    <Grid item size={{xs:12, md:7}} sx={{ display: 'flex', flexDirection: 'column', p: { xs: 0.5, md: 1 }, minWidth: 0, height: '100%'}}>
+                    <Grid item size={{ xs:12, md:5 }} sx={{ display: 'flex', flexDirection: 'column', p: { xs: 0.5, md: 1 }, minWidth: 0, height: '100%'}}>
                         <Paper
                             ref={storyTextRef}
                             component="article"
-                            elevation={3} // Increased elevation
+                            elevation={3}
                             sx={{
                                 flexGrow: 1, overflowY: 'auto', p: { xs: 1.5, md: 2.5 },
                                 bgcolor: theme.palette.background.paper,
@@ -359,7 +383,7 @@ export const StoryDisplayView = ({
                             >
                                 {displayedStoryText && displayedStoryText.trim() !== "" ? (
                                     displayedStoryText.split('\n').map((paragraph, index, arr) => (
-                                        <p key={`${index}-${currentStoryId || 'p'}-${Math.random()}`} style={{ marginBottom: index === arr.length - 1 ? 0 : '1em' }}>
+                                        <p key={`${index}-${storyTitle}-${Math.random()}`} style={{ marginBottom: index === arr.length - 1 ? 0 : '1em' }}>
                                             {paragraph}
                                         </p>
                                     ))
@@ -377,15 +401,41 @@ export const StoryDisplayView = ({
                                 flexShrink: 0,
                                 fontSize: { xs: '0.85rem', md: '0.95rem' }, p: { xs: 1, md: 1.25 }
                             }}
-                            endIcon={<AddCommentIcon />}
-                            disabled={(!!titleQueryParam && !!currentStoryId && storytellerTurns.length > 0 && storytellerTurns[currentStorytellerTurnIndex]?.promptForUser === null) || isSubmitting }
+                            disabled={(!!titleQueryParam && storytellerTurns.length > 0 && storytellerTurns[currentStorytellerTurnIndex]?.promptForUser === null) || isSubmitting }
                         >
-                            {(!!titleQueryParam && !!currentStoryId && storytellerTurns.length > 0 && storytellerTurns[currentStorytellerTurnIndex]?.promptForUser === null)
-                                ? "Viewing Past Story"
+                            {(!!titleQueryParam && storytellerTurns.length > 0 && storytellerTurns[currentStorytellerTurnIndex]?.promptForUser === null)
+                                ? "Viewing Past Story (End)"
                                 : `Continue... (${(promptForNextTurnButton || "What's next?").substring(0,20)}${(promptForNextTurnButton || "What's next?").length > 20 ? '...' : ''})`}
                         </Button>
                     </Grid>
                 </Grid>
+
+                <Dialog
+                    open={isMakePublicDialogOpen}
+                    onClose={onCloseMakePublicDialog}
+                    aria-labelledby="make-public-dialog-title"
+                    aria-describedby="make-public-dialog-description"
+                >
+                    <DialogTitle id="make-public-dialog-title">Make Story Public?</DialogTitle>
+                    <DialogContent>
+                        <DialogContentText id="make-public-dialog-description">
+                            Are you sure you want to make this story public?
+                            <br /><br />
+                            Once public, the story title, the generated story content, and associated images will be visible to everyone.
+                            Your prompts (the text you type to guide the story) will <strong>not</strong> be made public.
+                            <br /><br />
+                            This action cannot be undone through this interface.
+                        </DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={onCloseMakePublicDialog} color="primary" disabled={isMakingPublic}>
+                            Cancel
+                        </Button>
+                        <Button onClick={onConfirmMakePublic} color="secondary" variant="contained" disabled={isMakingPublic}>
+                            {isMakingPublic ? <CircularProgress size={24} color="inherit" /> : "Make Public"}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
             </Box>
         </Slide>
     );

@@ -31,6 +31,8 @@ export default function LoginPage() {
   const auth = useAuth();
 
   const from = router.query.from || '/';
+  const canonicalUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://musings-mr.net'}/login`;
+
 
   useEffect(() => {
     let message = '';
@@ -101,6 +103,7 @@ export default function LoginPage() {
         <Head>
           <title>Sign In - Musings</title>
           <meta name="description" content="Sign in to access your Musings account." />
+          <link rel="canonical" href={canonicalUrl} />
         </Head>
         <Container component="main" maxWidth="xs" sx={{ pb: 4 }}> {/* Added padding bottom to container */}
           <Paper

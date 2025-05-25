@@ -1,6 +1,7 @@
-import React from 'react';
+// pages/index.jsx
+import React, { useState, useRef, useEffect } from 'react'; // Added useState
 import Head from 'next/head';
-import NextLink from 'next/link'; // Changed import for Next.js Link to avoid conflict
+import NextLink from 'next/link';
 import {
     Grid,
     Typography,
@@ -9,46 +10,92 @@ import {
     Paper,
     Divider,
     Button,
-    Link as MuiLink, // Import MUI Link as MuiLink
+    Link as MuiLink,
+    CircularProgress,
+    Accordion, // Added
+    AccordionSummary, // Added
+    AccordionDetails, // Added
+    useTheme, // Moved useTheme import higher
+    alpha,
 } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
 import BlogPostPreview from '../src/components/BlogPostPreview';
 import CookieConsent from 'react-cookie-consent';
 
-// This function runs at build time (or on-demand with revalidate) on the server-side.
+// getStaticProps function remains the same as your last working version
 export async function getStaticProps() {
     let posts = [];
-    let error = null;
-    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/posts/`;
+    let blogError = null;
+    const postsApiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/posts/`;
+
+    let publicStories = [];
+    let storiesError = null;
+    const storiesApiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/experiments/campfire/public/list`;
 
     try {
-        const response = await fetch(apiUrl, {
-            headers: {
-                Accept: 'application/json',
-            },
+        const postsResponse = await fetch(postsApiUrl, {
+            headers: { Accept: 'application/json' },
         });
-
-        if (!response.ok) {
-            console.error(`HTTP error fetching posts: ${response.status}`);
-            error = `Failed to load posts. Status: ${response.status}`;
+        if (!postsResponse.ok) {
+            console.error(`HTTP error fetching posts: ${postsResponse.status}`);
+            blogError = `Failed to load posts. Status: ${postsResponse.status}`;
         } else {
-            posts = await response.json();
+            posts = await postsResponse.json();
         }
     } catch (e) {
         console.error('Network or fetch error fetching posts:', e);
-        error = 'Failed to load posts due to a network or fetch error.';
+        blogError = 'Failed to load posts due to a network or fetch error.';
+    }
+
+    try {
+        const storiesResponse = await fetch(storiesApiUrl, {
+            headers: { Accept: 'application/json' },
+        });
+        if (!storiesResponse.ok) {
+            console.error(`HTTP error fetching public stories: ${storiesResponse.status}`);
+            storiesError = `Failed to load public stories. Status: ${storiesResponse.status}`;
+        } else {
+            const storiesData = await storiesResponse.json();
+            publicStories = storiesData || [];
+        }
+    } catch (e) {
+        console.error('Network or fetch error fetching public stories:', e);
+        storiesError = 'Failed to load public stories due to a network or fetch error.';
     }
 
     return {
         props: {
             posts: posts || [],
-            error: error,
+            blogError: blogError,
+            publicStories: publicStories || [],
+            storiesError: storiesError,
         },
+        // Removed revalidate based on previous discussions if output: 'export' is used
     };
 }
 
-export default function HomePage({ posts, error }) {
-    const theme = useTheme(); // Get the theme object
+
+export default function HomePage({ posts, blogError, publicStories, storiesError }) {
+    const theme = useTheme();
+    const [isPublicStoriesExpanded, setIsPublicStoriesExpanded] = useState(false);
+    const publicStoriesAccordionRef = useRef(null);
+
+    const handleAccordionChange = (event, isExpanded) => {
+        setIsPublicStoriesExpanded(isExpanded);
+    };
+
+    // Effect to scroll to the accordion when it's expanded
+    useEffect(() => {
+        if (isPublicStoriesExpanded && publicStoriesAccordionRef.current) {
+            console.log('isPublicStoriesExpanded', isPublicStoriesExpanded);
+            // Timeout to ensure the element is rendered and layout is complete
+            setTimeout(() => {
+                publicStoriesAccordionRef.current.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start', // Scrolls to the top of the element
+                });
+            }, 100); // Adjust timeout if necessary
+        }
+    }, [isPublicStoriesExpanded]);
 
     return (
         <>
@@ -56,35 +103,23 @@ export default function HomePage({ posts, error }) {
                 <title>Musings - Home</title>
                 <meta
                     name="description"
-                    content="Welcome to Musings. A space for thoughts, reflections, and explorations."
+                    content="Matt Rkiouak's personal website and blog."
                 />
                 <meta property="og:title" content="Musings - Home" />
                 <meta
                     property="og:description"
-                    content="Welcome to Musings. A space for thoughts, reflections, and explorations."
+                    content="Matt Rkiouak's personal website and blog."
                 />
             </Head>
-
             <Box>
-                {/* --- Welcome Section --- */}
                 <Paper
                     elevation={4}
                     sx={{
-                        p: { xs: 3, sm: 4 },
-                        mb: 4,
                         textAlign: 'left',
                     }}
                 >
-                    <Typography variant="h4" component="h2" gutterBottom>
-                        Welcome to Musings.
-                    </Typography>
-                    <Typography variant="body1" paragraph>
-                        You can find my personal blog posts & some AI experiments here, like Ki StoryGen.
-                    </Typography>
-                    {/* New, Emphasized CTA for Ki Storygen */}
                     <Box
                         sx={{
-                            mt: 3,
                             p: { xs: 2, sm: 3 },
                             backgroundColor: alpha(theme.palette.secondary.main, 0.08),
                             border: `1px solid ${alpha(theme.palette.secondary.main, 0.3)}`,
@@ -109,43 +144,41 @@ export default function HomePage({ posts, error }) {
                                 Discover Ki Storygen!
                             </Typography>
                         </Box>
-                        <Typography variant="body1" sx={{ mb: 2, px:1 }}>
-                            Unleash your creativity with our AI-powered interactive storytelling tool.
+                        <Box sx={{ mb: 1.5 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ml: 1}}>
+                            Collaboratively tell family-friendly stories with illustrations and interactive elements. You describe the story, and generative Ai fills in the details & drawings.
                         </Typography>
-                        <NextLink href="/experiments" passHref legacyBehavior>
+                        </Box>
+                        <NextLink href="https://ki-storygen.com" passHref legacyBehavior>
                             <Button variant="contained" color="secondary" size="large" sx={{ mb: 2.5, px: {xs: 3, sm:5}, py: {xs:1, sm:1.5} }}>
                                 Start Your First Story
                             </Button>
                         </NextLink>
-                        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                            <NextLink href="/signup" passHref legacyBehavior>
-                                <MuiLink sx={{fontWeight:'bold', color: theme.palette.primary.main, cursor: 'pointer'}}>Sign up</MuiLink>
-                            </NextLink> to get <strong style={{ color: theme.palette.text.primary }}>50 story turns with illustrations per day </strong>
-                             and the ability to <strong style={{ color: theme.palette.text.primary }}>comment on posts</strong>!
-                        </Typography>
                     </Box>
                 </Paper>
 
-                <Divider sx={{ mb: 4 }} />
+                <Divider sx={{ my: 4 }} />
+                {/* Divider before Latest Posts, ensure it's not too close if stories are collapsed */}
+                <Divider sx={{ mb: 4, mt: isPublicStoriesExpanded ? 0 : 2 }} />
 
+
+                {/* --- Latest Blog Posts Section --- */}
                 <Typography
                     id="latest-posts"
                     variant="h4"
-                    component="h1"
+                    component="h2"
                     gutterBottom
                     align="center"
                     sx={{ mb: 4, fontWeight: 'medium' }}
                 >
-                    Latest Posts
+                    Matt's Latest Blog Posts
                 </Typography>
-
-                {error && (
+                {blogError && (
                     <Alert severity="error" sx={{ my: 3 }}>
-                        {error} Please try refreshing the page later.
+                        {blogError} Please try refreshing the page later.
                     </Alert>
                 )}
-
-                {!error && (
+                {!blogError && (
                     <Grid container spacing={4}>
                         {posts.length > 0 ? (
                             posts.map((post) => (
@@ -155,7 +188,9 @@ export default function HomePage({ posts, error }) {
                             ))
                         ) : (
                             <Grid item xs={12}>
-                                <Typography align="center" sx={{py: 3}}>No posts available yet.</Typography>
+                                <Typography align="center" sx={{py: 3, color: 'text.secondary'}}>
+                                    No posts available yet.
+                                </Typography>
                             </Grid>
                         )}
                     </Grid>
@@ -164,12 +199,13 @@ export default function HomePage({ posts, error }) {
                 <CookieConsent
                     location="bottom"
                     buttonText="I Accept"
-                    cookieName="musings-mr.net"
-                    style={{ background: '#2B373B' }}
-                    buttonStyle={{ color: '#4e503b', fontSize: '13px' }}
+                    cookieName="musings-mr.net-cookie-consent"
+                    style={{ background: '#2B373B', zIndex: 1500 }}
+                    buttonStyle={{ color: '#FFFFFF', background: theme.palette.primary.main, fontSize: '13px', borderRadius: '4px' }}
                     expires={150}
+                    ariaAcceptLabel="Accept cookies"
                 >
-                    This website uses cookies to better understand its audience.
+                    This website uses cookies to enhance user experience and analyze site traffic. By clicking &quot;I Accept&quot;, you consent to our use of cookies.
                 </CookieConsent>
             </Box>
         </>
