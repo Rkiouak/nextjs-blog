@@ -17,6 +17,8 @@ import {
     AccordionDetails, // Added
     useTheme, // Moved useTheme import higher
     alpha,
+    Tabs, // Added Tabs
+    Tab,  // Added Tab
 } from '@mui/material';
 import BlogPostPreview from '../src/components/BlogPostPreview';
 import CookieConsent from 'react-cookie-consent';
@@ -31,6 +33,8 @@ export async function getStaticProps() {
     let storiesError = null;
     const storiesApiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/experiments/campfire/public/list`;
 
+    let categories = ["All"]; // Initialize with "All"
+
     try {
         const postsResponse = await fetch(postsApiUrl, {
             headers: { Accept: 'application/json' },
@@ -39,7 +43,12 @@ export async function getStaticProps() {
             console.error(`HTTP error fetching posts: ${postsResponse.status}`);
             blogError = `Failed to load posts. Status: ${postsResponse.status}`;
         } else {
-            posts = await postsResponse.json();
+            const fetchedPosts = await postsResponse.json();
+            posts = fetchedPosts || [];
+            if (Array.isArray(posts)) {
+                const uniqueCategories = new Set(posts.map(p => p.category).filter(Boolean));
+                categories = ["All", ...Array.from(uniqueCategories)];
+            }
         }
     } catch (e) {
         console.error('Network or fetch error fetching posts:', e);
@@ -68,20 +77,31 @@ export async function getStaticProps() {
             blogError: blogError,
             publicStories: publicStories || [],
             storiesError: storiesError,
+            categories: categories, // Pass categories to the component
         },
         // Removed revalidate based on previous discussions if output: 'export' is used
     };
 }
 
 
-export default function HomePage({ posts, blogError, publicStories, storiesError }) {
+export default function HomePage({ posts, blogError, publicStories, storiesError, categories }) {
     const theme = useTheme();
     const [isPublicStoriesExpanded, setIsPublicStoriesExpanded] = useState(false);
     const publicStoriesAccordionRef = useRef(null);
+    const [selectedCategory, setSelectedCategory] = useState("All");
 
     const handleAccordionChange = (event, isExpanded) => {
         setIsPublicStoriesExpanded(isExpanded);
     };
+
+    const handleCategoryChange = (event, newValue) => {
+        setSelectedCategory(newValue);
+    };
+
+    const filteredPosts = selectedCategory === "All"
+        ? posts
+        : posts.filter(post => post.category === selectedCategory);
+
 
     // Effect to scroll to the accordion when it's expanded
     useEffect(() => {
@@ -145,9 +165,9 @@ export default function HomePage({ posts, blogError, publicStories, storiesError
                             </Typography>
                         </Box>
                         <Box sx={{ mb: 1.5 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ml: 1}}>
-                            Collaboratively tell family-friendly stories with illustrations and interactive elements. You describe the story, and generative Ai fills in the details & drawings.
-                        </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ml: 1}}>
+                                Collaboratively tell family-friendly stories with illustrations and interactive elements. You describe the story, and generative AI fills in the details & drawings.
+                            </Typography>
                         </Box>
                         <NextLink href="https://ki-storygen.com" passHref legacyBehavior>
                             <Button variant="contained" color="secondary" size="large" sx={{ mb: 2.5, px: {xs: 3, sm:5}, py: {xs:1, sm:1.5} }}>
@@ -169,31 +189,50 @@ export default function HomePage({ posts, blogError, publicStories, storiesError
                     component="h2"
                     gutterBottom
                     align="center"
-                    sx={{ mb: 4, fontWeight: 'medium' }}
+                    sx={{ mb: 2, fontWeight: 'medium' }} // Reduced mb
                 >
                     Matt's Latest Blog Posts
                 </Typography>
+
                 {blogError && (
                     <Alert severity="error" sx={{ my: 3 }}>
                         {blogError} Please try refreshing the page later.
                     </Alert>
                 )}
                 {!blogError && (
-                    <Grid container spacing={4}>
-                        {posts.length > 0 ? (
-                            posts.map((post) => (
-                                <Grid item key={post.id} xs={12} sm={6} md={4}>
-                                    <BlogPostPreview post={post} />
+                    <>
+                        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+                            <Tabs
+                                value={selectedCategory}
+                                onChange={handleCategoryChange}
+                                aria-label="blog post categories"
+                                centered
+                                indicatorColor="primary"
+                                textColor="primary"
+                                variant="scrollable"
+                                scrollButtons="auto"
+                            >
+                                {categories.map((category) => (
+                                    <Tab label={category} value={category} key={category} />
+                                ))}
+                            </Tabs>
+                        </Box>
+                        <Grid container spacing={4}>
+                            {filteredPosts.length > 0 ? (
+                                filteredPosts.map((post) => (
+                                    <Grid item key={post.id} xs={12} sm={6} md={4}>
+                                        <BlogPostPreview post={post} />
+                                    </Grid>
+                                ))
+                            ) : (
+                                <Grid item xs={12}>
+                                    <Typography align="center" sx={{py: 3, color: 'text.secondary'}}>
+                                        No posts found for this category.
+                                    </Typography>
                                 </Grid>
-                            ))
-                        ) : (
-                            <Grid item xs={12}>
-                                <Typography align="center" sx={{py: 3, color: 'text.secondary'}}>
-                                    No posts available yet.
-                                </Typography>
-                            </Grid>
-                        )}
-                    </Grid>
+                            )}
+                        </Grid>
+                    </>
                 )}
 
                 <CookieConsent

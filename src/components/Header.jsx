@@ -6,6 +6,7 @@ import {useRouter} from 'next/router'; // Added useRouter
 import {useAuth} from '@/context/AuthContext';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import EditIcon from '@mui/icons-material/Edit'; // Added EditIcon
 
 function Header() {
     const {user, isAuthenticated, logout} = useAuth();
@@ -63,7 +64,6 @@ function Header() {
                     href="/"
                     sx={{
                         whiteSpace: 'nowrap',
-                        // Example active style:
                         backgroundColor: isCurrentPage('/') ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
                         '&:hover': {
                             backgroundColor: 'rgba(255, 255, 255, 0.3)',
@@ -92,24 +92,40 @@ function Header() {
 
                 {/* Right-hand side controls */}
                 <Box sx={{display: 'flex', alignItems: 'center'}}>
-                    {isAuthenticated ? (
+                    {isAuthenticated && user?.email === 'mrkiouak@gmail.com' && (
                         <>
-                            {user?.email === 'mrkiouak@gmail.com' && (
-                                <Button
-                                    color="inherit"
-                                    component={Link}
-                                    href="/create-post"
-                                    startIcon={<AddCircleOutlineIcon/>}
-                                    sx={{
-                                        mr: {xs: 0.5, sm: 1.5},
-                                        whiteSpace: 'nowrap',
-                                        display: {xs: 'none', sm: 'inline-flex'} // Hide on very small screens if needed
-                                    }}
-                                >
-                                    Create Post
-                                </Button>
-                            )}
+                            <Button
+                                color="inherit"
+                                component={Link}
+                                href="/create-post"
+                                startIcon={<AddCircleOutlineIcon/>}
+                                sx={{
+                                    mr: {xs: 0.5, sm: 1}, // Adjusted margin
+                                    whiteSpace: 'nowrap',
+                                    display: {xs: 'none', sm: 'inline-flex'}
+                                }}
+                            >
+                                Create Post
+                            </Button>
+                            <Button
+                                color="inherit"
+                                component={Link}
+                                href="/edit-posts" // Link to the new edit posts page
+                                startIcon={<EditIcon />}
+                                sx={{
+                                    mr: {xs: 0.5, sm: 1.5},
+                                    whiteSpace: 'nowrap',
+                                    display: {xs: 'none', sm: 'inline-flex'}
+                                }}
+                            >
+                                Edit Posts
+                            </Button>
+                        </>
+                    )}
 
+                    {isAuthenticated ? ( // General authenticated user controls (excluding admin-specific ones above)
+                        <>
+                            {/* Ki Storygen button might still be relevant for all logged-in users */}
                             <Button
                                 color="inherit"
                                 component={Link}
@@ -119,11 +135,11 @@ function Header() {
                                     display: 'flex',
                                     alignItems: 'center',
                                     whiteSpace: 'nowrap',
-                                    padding: '6px 12px', // Adjust padding for better spacing with larger logo
+                                    padding: '6px 12px',
                                     '&:hover': {
-                                        backgroundColor: 'rgba(255, 255, 255, 0.15)', // Subtle hover background
-                                        '& .ki-logo, & .ki-text': { // Target children by class
-                                            opacity: 0.85, // Slightly dim on hover for effect
+                                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                                        '& .ki-logo, & .ki-text': {
+                                            opacity: 0.85,
                                         }
                                     },
                                     backgroundColor: 'transparent',
@@ -139,7 +155,7 @@ function Header() {
                                         width: 38,
                                         mr: 0.75,
                                         objectFit: 'contain',
-                                        borderRadius: '50%', // Making Ki Storygen logo circular
+                                        borderRadius: '50%',
                                         transition: 'opacity 0.2s ease-in-out',
                                     }}
                                 />
@@ -177,7 +193,7 @@ function Header() {
                                 onClose={handleMenuClose}
                                 PaperProps={{
                                     sx: {
-                                        mt: 1, // Add some margin-top to the menu
+                                        mt: 1,
                                     }
                                 }}
                             >
@@ -187,7 +203,7 @@ function Header() {
                                 <MenuItem onClick={handleLogout}>Logout</MenuItem>
                             </Menu>
                         </>
-                    ) : (
+                    ) : ( // Not authenticated
                         <>
                             <Button color="inherit" component={Link} href="/login" sx={{whiteSpace: 'nowrap'}}>
                                 Login

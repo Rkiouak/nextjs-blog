@@ -1,25 +1,56 @@
+// src/theme.js
 import { createTheme } from '@mui/material/styles';
+import { grey } from '@mui/material/colors';
 
-const earthyTheme = createTheme({
+const grayscaleTheme = createTheme({
     palette: {
-        mode: 'light', // You can set 'light' or 'dark'
+        mode: 'light', // Or 'dark' if you prefer a dark base
         primary: {
-            main: '#fb9779', // Sienna - a reddish-brown earth tone
-            contrastText: '#FFFFFF', // White text contrasts well with Sienna
+            main: grey[800], // A darker gray for primary elements
+            contrastText: '#ffffff',
         },
         secondary: {
-            main: '#8FBC8F', // DarkSeaGreen - a muted, earthy green
-            contrastText: '#000000', // Black text for contrast
+            main: grey[600], // A medium gray for secondary elements
+            contrastText: '#ffffff',
         },
         background: {
-            default: '#F5F5DC', // Beige - a light sandy background
-            paper: '#FFFAF0',   // FloralWhite - slightly lighter for cards, paper surfaces
+            default: grey[100], // Very light gray for page background
+            paper: '#ffffff',   // White for paper elements like Cards, Paper
         },
         text: {
-            primary: '#5D4037',   // Dark Brown - for main text
-            secondary: '#795548', // Lighter Brown - for secondary text elements (like dates/authors)
+            primary: grey[900],   // Very dark gray (almost black) for main text
+            secondary: grey[700], // Lighter gray for secondary text
         },
+        divider: grey[300],     // Light gray for dividers
+    },
+    components: {
+        MuiAppBar: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: grey[900], // Dark AppBar
+                    color: grey[50],          // Light text on AppBar
+                },
+            },
+        },
+        MuiButton: {
+            styleOverrides: {
+                containedPrimary: {
+                    backgroundColor: grey[700],
+                    '&:hover': {
+                        backgroundColor: grey[600],
+                    },
+                },
+                containedSecondary: {
+                    backgroundColor: grey[500],
+                    color: grey[50],
+                    '&:hover': {
+                        backgroundColor: grey[400],
+                    },
+                },
+            },
+        },
+        // Add further component overrides if needed to fine-tune
     },
 });
 
-export default earthyTheme; // Export the theme if you put it in a separate file
+export default grayscaleTheme;

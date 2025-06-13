@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { Card, CardContent, CardMedia, Typography, CardActions, Button, Box } from '@mui/material';
+import { Card, CardContent, CardMedia, Typography, CardActions, Button, Box, Chip } from '@mui/material'; // Added Chip
 import { useTheme } from '@mui/material/styles';
 
 function BlogPostPreview({ post }) {
@@ -45,9 +45,14 @@ function BlogPostPreview({ post }) {
                 <Typography gutterBottom variant="h5" component="div" sx={{ fontWeight: 'medium' }}>
                     {post.title}
                 </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5 }}>
-                    By {post.author || 'Unknown Author'} on {post.date || 'Unknown Date'}
-                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary">
+                        By {post.author || 'Unknown Author'} on {post.date || 'Unknown Date'}
+                    </Typography>
+                    {post.category && (
+                        <Chip label={post.category} size="small" variant="outlined" sx={{ ml: 1 }} />
+                    )}
+                </Box>
                 <Typography
                     variant="body2"
                     color="text.secondary"
