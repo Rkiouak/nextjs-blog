@@ -22,7 +22,7 @@ function FullBlogPost({ post }) {
     const sanitizeOptions = {
         allowedTags: sanitizeHtml.defaults.allowedTags.concat([
             'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'p', 'a', 'ul', 'ol',
-            'nl', 'li', 'b', 'i', 'strong', 'em', 'strike', 'code', 'hr', 'br', 'pre',
+            'nl', 'li', 'b', 'i', 'strong', 'em', 'strike', 'code', 'hr', 'br', 'pre', 'video'
         ]),
         allowedAttributes: {
             ...sanitizeHtml.defaults.allowedAttributes,
@@ -61,24 +61,6 @@ function FullBlogPost({ post }) {
                 />
             )}
             <Divider sx={{ my: 3 }} />
-
-            {isHtmlContent ? (
-                <Box
-                    className="html-content"
-                    dangerouslySetInnerHTML={{
-                        __html: sanitizeHtml(post.content || '', sanitizeOptions)
-                    }}
-                    sx={{
-                        '& h1, & h2, & h3, & h4, & p, & ul, & ol, & blockquote, & pre': {
-                            mb: 1.5,
-                        },
-                        '& blockquote': { borderLeft: '4px solid grey', pl: 2, ml: 0, fontStyle: 'italic' },
-                        '& pre': { p: 1, bgcolor: 'grey.100', overflowX: 'auto', borderRadius: 1 },
-                        '& code': { fontFamily: 'monospace' },
-                        '& img': { maxWidth: '100%', height: 'auto' },
-                    }}
-                />
-            ) : (
                 <Box component="div" sx={{
                     '& h1': { mb: 2 },
                     '& h2': { mb: 2 },
@@ -93,7 +75,6 @@ function FullBlogPost({ post }) {
                 }}>
                     <ReactMarkdown>{post.content || ''}</ReactMarkdown>
                 </Box>
-            )}
         </Paper>
     );
 }
