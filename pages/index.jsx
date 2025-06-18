@@ -220,12 +220,12 @@ export default function HomePage({ posts, blogError, publicStories, storiesError
                         <Grid container spacing={4}>
                             {filteredPosts.length > 0 ? (
                                 filteredPosts.map((post) => (
-                                    <Grid item key={post.id} xs={12} sm={6} md={4}>
+                                    <Grid item key={post.id} size={{xs:12, sm:6, md:4}}>
                                         <BlogPostPreview post={post} />
                                     </Grid>
                                 ))
                             ) : (
-                                <Grid item xs={12}>
+                                <Grid item size={{xs:12}}>
                                     <Typography align="center" sx={{py: 3, color: 'text.secondary'}}>
                                         No posts found for this category.
                                     </Typography>
