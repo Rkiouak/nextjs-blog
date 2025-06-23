@@ -23,12 +23,13 @@ function Comment({ comment }) {
             }}
         >
             <Grid container wrap="nowrap" spacing={2}>
-                <Grid item>
-                    {/* You can replace Avatar with an actual image if you have user avatars */}
-                    <Avatar sx={{ bgcolor: 'primary.main' }}>{avatarText}</Avatar>
-                </Grid>
-                <Grid item xs>
-                    <Typography variant="subtitle2" component="div" gutterBottom>
+                <Grid item xs zeroMinWidth>
+                    <Typography
+                        variant="subtitle2"
+                        component="div"
+                        gutterBottom
+                        sx={{ wordBreak: 'break-word' }}
+                    >
                         <strong>{authorName}</strong>
                         <Typography
                             variant="caption"
@@ -41,7 +42,7 @@ function Comment({ comment }) {
                                 : 'Date unknown'}
                         </Typography>
                     </Typography>
-                    <Typography variant="body2" color="text.primary">
+                    <Typography variant="body2" color="text.primary" sx={{ wordBreak: 'break-word' }}>
                         {comment.content || 'No content'}
                     </Typography>
                 </Grid>
