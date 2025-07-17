@@ -20,7 +20,7 @@ export function AuthProvider({ children }) {
     // though global isLoading might already cover it.
     // setIsLoading(true); // Re-enable if distinct loading states are needed per fetch
     try {
-      const profileUrl = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/users/me/`;
+      const profileUrl = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/users/me`;
       const response = await fetch(profileUrl, {
         headers: {
           Authorization: `Bearer ${currentToken}`,

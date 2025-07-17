@@ -55,7 +55,7 @@ export default function ProfilePage() {
             setUserProfile(null); // Clear any previous profile data
 
             const fetchProfile = async () => {
-                const profileUrl = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/users/me/`;
+                const profileUrl = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/users/me`;
                 try {
                     const response = await fetch(profileUrl, {
                         method: 'GET', // Explicitly set method (optional for GET but good practice)
