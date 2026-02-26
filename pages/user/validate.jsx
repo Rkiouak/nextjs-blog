@@ -27,7 +27,7 @@ export default function ValidateUserPage() {
       setLoading(true);
       setError('');
       // Use environment variable for API URL if it's external
-      const validateUrl = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/users/`;
+      const validateUrl = '/api/users/';
 
       try {
         const response = await fetch(validateUrl, {

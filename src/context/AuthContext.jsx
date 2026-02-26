@@ -20,7 +20,8 @@ export function AuthProvider({ children }) {
     // though global isLoading might already cover it.
     // setIsLoading(true); // Re-enable if distinct loading states are needed per fetch
     try {
-      const profileUrl = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/users/me`;
+      // Use relative URL for client-side requests (works with Next.js proxy in dev)
+      const profileUrl = '/api/users/me';
       const response = await fetch(profileUrl, {
         headers: {
           Authorization: `Bearer ${currentToken}`,
@@ -109,7 +110,8 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (username, password) => {
     setIsLoading(true); // Indicate loading during login process
-    const loginUrl = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/token`;
+    // Use relative URL for client-side requests (works with Next.js proxy in dev)
+    const loginUrl = '/api/token';
     const formData = new FormData();
     formData.append('username', username);
     formData.append('password', password);

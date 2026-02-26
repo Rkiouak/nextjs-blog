@@ -85,7 +85,7 @@ export default function CreatePostPage() {
                 formData.append('image_file', imageFile);
             }
 
-            const createUrl = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/posts/`;
+            const createUrl = '/api/posts/';
 
             try {
                 const headers = {

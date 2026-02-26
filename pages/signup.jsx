@@ -56,7 +56,7 @@ export default function SignUpPage() {
 
         setLoading(true);
 
-        const signUpUrl = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/challenge/`;
+        const signUpUrl = '/api/challenge/';
         const userData = {
             username: username,
             email: email,

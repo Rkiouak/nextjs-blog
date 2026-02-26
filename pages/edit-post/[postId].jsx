@@ -48,7 +48,7 @@ export default function EditPostDynamicPage() {
                 const fetchPost = async () => {
                     setPageLoading(true); // Start loading for fetch
                     try {
-                        const postApiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/posts/${postId}`;
+                        const postApiUrl = `/api/posts/${postId}`;
                         const res = await fetch(postApiUrl, {
                             headers: {
                                 'Authorization': `Bearer ${token}`,
@@ -132,7 +132,7 @@ export default function EditPostDynamicPage() {
                 formData.append('image_file', imageFile);
             }
 
-            const updateUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/posts/${postId}`;
+            const updateUrl = `/api/posts/${postId}`;
 
             try {
                 const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };

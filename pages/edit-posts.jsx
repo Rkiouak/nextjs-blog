@@ -42,7 +42,7 @@ export default function EditPostsPage() {
                         return;
                     }
                     try {
-                        const postsApiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/posts/`;
+                        const postsApiUrl = '/api/posts/';
                         const res = await fetch(postsApiUrl, {
                             headers: {
                                 'Authorization': `Bearer ${token}`, // Assuming posts list might be protected

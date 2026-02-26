@@ -27,7 +27,7 @@ function CommentList({ postId }) {
         setError('');
         try {
             const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/posts/${postId}/comments/`
+                `/api/posts/${postId}/comments/`
             );
             if (!response.ok) {
                 throw new Error(`Failed to fetch comments: ${response.status}`);
@@ -35,8 +35,14 @@ function CommentList({ postId }) {
             const data = await response.json();
             setComments(data || []); // Ensure comments is always an array
         } catch (err) {
-            console.error('Error fetching comments:', err);
-            setError(err.message || 'Could not load comments.');
+            // Silently handle network errors (expected during local development)
+            if (err.name === 'TypeError' && err.message.includes('fetch')) {
+                console.log('Comments API unavailable (local development)');
+                setComments([]);
+            } else {
+                console.error('Error fetching comments:', err);
+                setError(err.message || 'Could not load comments.');
+            }
         } finally {
             setIsLoading(false);
         }
@@ -63,7 +69,7 @@ function CommentList({ postId }) {
 
         try {
             const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/posts/${postId}/comments/`,
+                `/api/posts/${postId}/comments/`,
                 {
                     method: 'POST',
                     headers: {

@@ -1,56 +1,77 @@
 // src/theme.js
 import { createTheme } from '@mui/material/styles';
-import { grey } from '@mui/material/colors';
 
-const grayscaleTheme = createTheme({
+const theme = createTheme({
     palette: {
-        mode: 'light', // Or 'dark' if you prefer a dark base
+        mode: 'light',
         primary: {
-            main: grey[800], // A darker gray for primary elements
+            main: '#3a4045',      // Charcoal
             contrastText: '#ffffff',
         },
         secondary: {
-            main: grey[600], // A medium gray for secondary elements
+            main: '#5b8a72',      // Green accent
             contrastText: '#ffffff',
         },
         background: {
-            default: grey[100], // Very light gray for page background
-            paper: '#ffffff',   // White for paper elements like Cards, Paper
+            default: '#f5f5f5',   // Light warm gray
+            paper: '#ffffff',
         },
         text: {
-            primary: grey[900],   // Very dark gray (almost black) for main text
-            secondary: grey[700], // Lighter gray for secondary text
+            primary: '#1f2937',   // Dark charcoal
+            secondary: '#4b5563', // Medium gray
         },
-        divider: grey[300],     // Light gray for dividers
+        divider: '#e5e7eb',
     },
     components: {
         MuiAppBar: {
             styleOverrides: {
                 root: {
-                    backgroundColor: grey[900], // Dark AppBar
-                    color: grey[50],          // Light text on AppBar
+                    backgroundColor: '#3a4045',
+                    color: '#f9fafb',
                 },
             },
         },
         MuiButton: {
             styleOverrides: {
                 containedPrimary: {
-                    backgroundColor: grey[700],
+                    backgroundColor: '#3a4045',
                     '&:hover': {
-                        backgroundColor: grey[600],
+                        backgroundColor: '#4a5055',
                     },
                 },
                 containedSecondary: {
-                    backgroundColor: grey[500],
-                    color: grey[50],
+                    backgroundColor: '#5b8a72',
                     '&:hover': {
-                        backgroundColor: grey[400],
+                        backgroundColor: '#4a7a62',
                     },
                 },
             },
         },
-        // Add further component overrides if needed to fine-tune
+        MuiChip: {
+            styleOverrides: {
+                outlined: {
+                    borderColor: '#5b8a72',
+                    color: '#5b8a72',
+                },
+            },
+        },
+        MuiTab: {
+            styleOverrides: {
+                root: {
+                    '&.Mui-selected': {
+                        color: '#5b8a72',
+                    },
+                },
+            },
+        },
+        MuiTabs: {
+            styleOverrides: {
+                indicator: {
+                    backgroundColor: '#5b8a72',
+                },
+            },
+        },
     },
 });
 
-export default grayscaleTheme;
+export default theme;

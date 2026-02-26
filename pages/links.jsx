@@ -1,72 +1,57 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Head from 'next/head';
-import { Container, Typography, Grid, CircularProgress, Alert } from '@mui/material';
+import { Container, Typography, Grid, Alert } from '@mui/material';
 import LinkPreview from '../src/components/LinkPreview';
 
-export default function LinksPage() {
-    // State to hold the links, loading status, and any errors
-    const [links, setLinks] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+export async function getStaticProps() {
+    let links = [];
+    let error = null;
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/interesting-links/`;
 
-    // useEffect to fetch data when the component mounts
-    useEffect(() => {
-        const fetchLinks = async () => {
-            try {
-                // Fetch from the new API endpoint
-                const response = await fetch('/api/interesting-links/');
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data = await response.json();
-                setLinks(data); // Set the fetched links into state
-            } catch (e) {
-                setError(e.message); // Set error state if something goes wrong
-                console.error("Failed to fetch interesting links:", e);
-            } finally {
-                setLoading(false); // Set loading to false once done
-            }
-        };
-
-        fetchLinks();
-    }, []); // Empty dependency array ensures this effect runs only once on mount
-
-    // Render loading state
-    if (loading) {
-        return (
-            <Container maxWidth="md" sx={{ py: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
-                <CircularProgress />
-                <Typography sx={{ mt: 2 }}>Loading links...</Typography>
-            </Container>
-        );
+    try {
+        const response = await fetch(apiUrl, {
+            headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) {
+            console.error(`HTTP error fetching links: ${response.status}`);
+            error = `Failed to load links. Status: ${response.status}`;
+        } else {
+            links = await response.json();
+        }
+    } catch (e) {
+        console.error('Network error fetching links:', e);
+        error = 'Failed to load links due to a network error.';
     }
 
-    // Render error state
-    if (error) {
-        return (
-            <Container maxWidth="md" sx={{ py: 4 }}>
-                <Alert severity="error">
-                    <strong>Failed to Load Links</strong><br />
-                    There was a problem retrieving the links. Please try again later.<br />
-                    <Typography variant="caption">Error: {error}</Typography>
-                </Alert>
-            </Container>
-        );
-    }
+    return {
+        props: {
+            links: links || [],
+            error: error,
+        },
+    };
+}
 
+export default function LinksPage({ links, error }) {
     return (
         <>
             <Head>
-                <title>Links I Found Interesting - Musings</title>
+                <title>Reading List - Musings</title>
                 <meta name="description" content="A curated list of interesting links from around the web." />
             </Head>
             <Container maxWidth="md" sx={{ py: 4 }}>
                 <Typography variant="h4" component="h1" gutterBottom align="center">
-                    Interesting Links
+                    Reading List
                 </Typography>
                 <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 5 }}>
-                    A list of links worth reading.
+                    Links worth reading.
                 </Typography>
+
+                {error && (
+                    <Alert severity="error" sx={{ mb: 3 }}>
+                        {error}
+                    </Alert>
+                )}
+
                 <Grid container spacing={3} direction="column">
                     {links.length > 0 ? (
                         links.map((link) => (
@@ -75,9 +60,11 @@ export default function LinksPage() {
                             </Grid>
                         ))
                     ) : (
-                        <Typography sx={{ mt: 4, textAlign: 'center', color: 'text.secondary' }}>
-                            No interesting links have been added yet.
-                        </Typography>
+                        !error && (
+                            <Typography sx={{ mt: 4, textAlign: 'center', color: 'text.secondary' }}>
+                                No links have been added yet.
+                            </Typography>
+                        )
                     )}
                 </Grid>
             </Container>

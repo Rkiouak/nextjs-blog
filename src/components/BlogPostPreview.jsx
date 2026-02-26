@@ -24,19 +24,21 @@ function BlogPostPreview({ post }) {
             }
         }}>
             {post.imageUrl && (
-                <Box sx={{ overflow: 'hidden', height: 160 }}> {/* Set fixed height for the image container */}
+                <Box sx={{
+                    height: 200,
+                    backgroundColor: '#f0f0f0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                }}>
                     <CardMedia
                         component="img"
                         image={post.imageUrl}
                         alt={post.title}
                         sx={{
-                            objectFit: 'cover',
+                            objectFit: 'contain',
                             width: '100%',
-                            height: '100%', // Make image fill the fixed-height container
-                            transition: 'transform 0.35s ease-in-out',
-                            '&:hover': {
-                                transform: 'scale(1.05)',
-                            }
+                            height: '100%',
                         }}
                     />
                 </Box>
