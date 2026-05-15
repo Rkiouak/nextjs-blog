@@ -15,6 +15,7 @@ import {
     Input, // Using Input for file upload styling flexibility
 } from '@mui/material';
 import ReactMarkdown from 'react-markdown'; // For preview
+import remarkGfm from 'remark-gfm';
 
 import { useAuth } from '@/context/AuthContext'; // Adjust path if needed
 
@@ -281,7 +282,7 @@ export default function CreatePostPage() {
                                 }}
                             >
                                 {markdownContent ? (
-                                    <ReactMarkdown>{markdownContent}</ReactMarkdown>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownContent}</ReactMarkdown>
                                 ) : (
                                     <Typography color="textSecondary">
                                         Start writing content to see the preview...

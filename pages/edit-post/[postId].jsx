@@ -16,6 +16,7 @@ import {
     Input,
 } from '@mui/material';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useAuth } from '@/context/AuthContext';
 
 export default function EditPostDynamicPage() {
@@ -241,7 +242,7 @@ export default function EditPostDynamicPage() {
 
                         {isPreview ? (
                             <Paper variant="outlined" sx={{ p: 2, mt: 1, mb: 2, minHeight: '300px', overflowWrap: 'break-word', bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100', '& h1,& h2,& h3,& h4,& p,& ul,& ol,& blockquote,& pre': { mb: 1.5 }, '& blockquote': { borderLeft: '4px solid grey', pl: 2, ml: 0, fontStyle: 'italic' }, '& pre': { p: 1, bgcolor: 'grey.200', overflowX: 'auto' } }}>
-                                {markdownContent ? <ReactMarkdown>{markdownContent}</ReactMarkdown> : <Typography color="textSecondary">Start writing content...</Typography>}
+                                {markdownContent ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownContent}</ReactMarkdown> : <Typography color="textSecondary">Start writing content...</Typography>}
                             </Paper>
                         ) : (
                             <TextField margin="normal" required fullWidth id="markdownContent" label="Post Content (Markdown)" name="markdownContent" multiline rows={15} value={markdownContent} onChange={(e) => setMarkdownContent(e.target.value)} disabled={loading} placeholder="Write your post content..." />

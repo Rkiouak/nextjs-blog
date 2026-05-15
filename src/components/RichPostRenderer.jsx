@@ -16,7 +16,8 @@ const customSchema = {
         'video', 'source', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
         'blockquote', 'p', 'a', 'ul', 'ol', 'nl', 'li', 'b', 'i',
         'strong', 'em', 'strike', 'code', 'hr', 'br', 'pre',
-        'table', 'thead', 'tbody', 'tr', 'th', 'td'
+        'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'sup', 'section'
     ],
     attributes: {
         ...defaultSchema.attributes,
@@ -25,7 +26,9 @@ const customSchema = {
         ],
         source: ['src', 'type'],
         img: ['src', 'srcset', 'alt', 'title', 'width', 'height', 'loading'],
-        a: ['href', 'name', 'target', 'title'],
+        a: ['href', 'name', 'target', 'title', 'id', 'ariaDescribedBy', 'ariaLabel', 'dataFootnoteRef', 'dataFootnoteBackref'],
+        section: ['className', 'dataFootnotes'],
+        li: ['id'],
         th: ['align'],
         td: ['align'],
         '*': ['className', 'id'],
